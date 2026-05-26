@@ -2,7 +2,7 @@
 
 An AI agent that turns a year of student tech org data into queryable, actionable intelligence.
 
-Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com) — MongoDB track.
+Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com), MongoDB track.
 
 ---
 
@@ -10,12 +10,12 @@ Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.c
 
 Student tech org leaders spend hours every week trying to remember what was decided, what worked at past events, and how to plan what's next. When people graduate, all that knowledge graduates with them.
 
-This agent ingests a year of real organizational data — meeting notes, event logistics, Discord decisions, financial records, sponsor outreach — and makes it instantly queryable. Ask what went wrong at the last hackathon. Ask how attendance has grown. Ask the agent to draft a planning brief for the next event, and it creates a real Google Doc from everything it learned.
+This agent ingests a year of real organizational data (meeting notes, event logistics, Discord decisions, financial records, sponsor outreach) and makes it instantly queryable. Ask what went wrong at the last hackathon. Ask how attendance has grown. Ask the agent to draft a planning brief for the next event, and it creates a real Google Doc from everything it learned.
 
 **Three modes:**
-- **RECALL** — "What happened at X?" → retrieval with cited sources
-- **ANALYZE** — "How have our metrics trended?" → cross-document synthesis
-- **PLAN** — "Help plan X" → synthesis + creates a Google Doc in Drive
+- **RECALL**: "What happened at X?" → retrieval with cited sources
+- **ANALYZE**: "How have our metrics trended?" → cross-document synthesis
+- **PLAN**: "Help plan X" → synthesis + creates a Google Doc in Drive
 
 ---
 
@@ -62,24 +62,24 @@ npm run dev
 ## Project Structure
 
 ```
-CLAUDE.md           — AI agent instructions (Claude Code context)
-TODO.md             — build progress tracker
+CLAUDE.md           - AI agent instructions (Claude Code context)
+TODO.md             - build progress tracker
 docs/
-  ARCHITECTURE.md   — system design, prompts, index definitions
-  DATA_MAP.md       — all Drive file IDs with ingest/skip labels
-  PII_RULES.md      — data privacy policy and stripping code
-  DEMO_SCRIPT.md    — 3 demo queries and expected outputs
-  JUDGING_ALIGNMENT.md — criteria to feature mapping
+  ARCHITECTURE.md   - system design, prompts, index definitions
+  DATA_MAP.md       - all Drive file IDs with ingest/skip labels
+  PII_RULES.md      - data privacy policy and stripping code
+  DEMO_SCRIPT.md    - 3 demo queries and expected outputs
+  JUDGING_ALIGNMENT.md - criteria to feature mapping
 src/
-  ingestion/        — Drive reader, chunker, noise filter, embedder
-  retrieval/        — vector search, reranker, retriever
-  agent/            — Gemini agent, tools, mode classifier
-  api/              — FastAPI server
-  frontend/         — React chat interface
+  ingestion/        - Drive reader, chunker, noise filter, embedder
+  retrieval/        - vector search, reranker, retriever
+  agent/            - Gemini agent, tools, mode classifier
+  api/              - FastAPI server
+  frontend/         - React chat interface
 ```
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT - see [LICENSE](LICENSE)
