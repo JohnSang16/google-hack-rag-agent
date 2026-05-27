@@ -12,6 +12,14 @@ Brief flash of: messy Drive folders, Discord history, scattered docs → then th
 
 ---
 
+## Demo Arc
+
+This demo builds. Query 1 establishes trust (grounded retrieval). Query 2 shows depth (cross-doc synthesis). Query 3 is the climax — the agent takes action. Narrate it that way. Don't treat the three queries as equal; they escalate.
+
+The money shot is the Google Doc appearing in Drive. Slow down there. Say the words: "The agent didn't just answer — it created something."
+
+---
+
 ## Query 1 — RECALL (0:20 - 1:00)
 
 **Query typed:** "What were the key logistics challenges at Hacklanta and how did we solve them?"
@@ -66,7 +74,9 @@ Brief flash of: messy Drive folders, Discord history, scattered docs → then th
 
 ---
 
-## Query 3 — PLAN / Money Shot (1:45 - 2:30)
+## Query 3 — PLAN / Climax (1:45 - 2:30)
+
+**Narration before typing the query:** "Now here's where it gets different from every other RAG demo you've seen."
 
 **Query typed:** "Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta."
 
@@ -91,10 +101,12 @@ Brief flash of: messy Drive folders, Discord history, scattered docs → then th
 
 **What to show on screen:**
 - The plan text streaming in the chat
-- The Google Doc link appearing
-- Click through to show the actual doc in Drive
+- The Google Doc link appearing — pause here, let it land
+- Say out loud: "The agent didn't just answer — it created something."
+- Click through to show the actual doc open in Drive — keep it on screen for 5+ seconds
+- Scroll through the doc sections while narrating
 
-**This proves:** The agent doesn't just answer — it takes action. This is the "move beyond chat" requirement from the hackathon.
+**This proves:** The agent takes multi-step action: retrieves from 5+ sources, synthesizes a plan, creates a real artifact in Drive. This is the "accomplish multi-step tasks" requirement from the hackathon judges.
 
 ---
 

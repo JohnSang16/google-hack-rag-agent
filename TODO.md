@@ -107,7 +107,10 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 | Date | Decision | Rationale |
 |---|---|---|
-| — | — | — |
+| 2026-05-27 | No dedicated people collection for v1 | Org structure and roles docs cover people queries implicitly once ingested. Scope risk not worth it before June 11. |
+| 2026-05-27 | Progsu Org Structure + Roles docs moved to Priority 1 | People layer is free if these are ingested early. No architecture change needed. |
+| 2026-05-27 | Bot integration deferred to post-hackathon | T&D Discord bot and Intelligence Agent to integrate after both ship independently. Noted in Devpost Potential Impact section. |
+| 2026-05-27 | Demo leads with PLAN mode as climax | Judges want multi-step action-taking. PLAN mode creates a real Google Doc — the strongest proof point. |
 
 ---
 
