@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: NOT STARTED
+## Current Status: SESSION 1 IN PROGRESS
 
 ---
 
@@ -14,9 +14,9 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 - [ ] Create MongoDB Atlas free cluster (cloud.mongodb.com)
 - [ ] Create database: `progsu_intelligence`, collection: `chunks`
 - [ ] Create Atlas Vector Search index using definition in docs/ARCHITECTURE.md
-- [ ] Write `src/ingestion/storer.py` — function to insert a chunk with embedding
-- [ ] Write `src/retrieval/vector_search.py` — function to query with $vectorSearch
-- [ ] Test: insert 5 dummy chunks with fake embeddings, query returns correct ones
+- [x] Write `src/ingestion/storer.py` — function to insert a chunk with embedding
+- [x] Write `src/retrieval/vector_search.py` — function to query with $vectorSearch
+- [ ] Test: insert 5 dummy chunks with fake embeddings, query returns correct ones (`tests/test_session1.py`)
 - [ ] Verify metadata pre-filter works (filter by event_name="hacklanta")
 
 **Done when:** `vector_search.py` returns the right dummy chunk for a test query.
