@@ -44,20 +44,42 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 
 ---
 
-### Feature 2: Retrieval Tool
+### Feature 2: Retrieval Tool (MCP-backed)
 **Owner:** Dev Agent
 **File:** `src/agent/tools/retrieve.py`
+
+**Important — read before building:** This tool does NOT wrap `retriever.py` directly.
+It calls the MongoDB MCP server, which in turn queries Atlas. This is intentional and
+non-negotiable — the MongoDB track judges specifically check that the agent uses MCP
+as its database bridge, not direct Python imports. The Python retrieval layer
+(`retriever.py`, `reranker.py`) is used during ingestion validation only, not by the agent.
+
+The MCP server must be running locally before this tool can be tested:
+```
+npx -y mongodb-mcp-server --connectionString $MONGODB_URI
+```
+This is a one-time local setup step. What runs locally is identical to what runs in
+production — no divergence between dev and demo day.
 
 #### Stories
 - As the agent I want a registered tool that fetches relevant chunks for any query
   so that my responses are grounded in real org data not hallucinated
+- As a hackathon judge I want to see the agent using MongoDB MCP as its database bridge
+  so that the project meets the MongoDB track integration requirement
 
 #### Tasks
-- [ ] Wrap `src/retrieval/retriever.py` as an agent-callable tool
-- [ ] Tool input schema: `{ query: string, filters: { event_name?, doc_type?, date_from?, date_to? } }`
+- [ ] Start local MongoDB MCP server using MONGODB_URI — document this as a required
+      dev setup step in README.md under "Running Locally"
+- [ ] Define the retrieve tool as a Gemini function calling tool with this input schema:
+      `{ query: string, filters: { event_name?, doc_type?, date_from?, date_to? } }`
+- [ ] Tool implementation calls the MCP server's `aggregate` tool with the $vectorSearch
+      pipeline (same pipeline as `vector_search.py` — copy the pipeline definition here,
+      do not import from vector_search.py)
+- [ ] After getting top-10 results from MCP, call the Gemini reranker prompt directly
+      (copy the prompt from `docs/ARCHITECTURE.md`) to score and return top 3
 - [ ] Tool output schema: list of `{ text, source_name, date, drive_link?, rerank_score }`
-- [ ] Register as a Gemini function calling tool with a clear description
-- [ ] Write `tests/test_retrieve_tool.py` using mocked retriever
+- [ ] Write `tests/test_retrieve_tool.py` with a mocked MCP server response —
+      do not make real Atlas calls in tests
 
 ---
 
@@ -122,15 +144,21 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 
 ---
 
-### Feature 6: MongoDB MCP Wiring
+### Feature 6: MCP Setup Verification
 **Owner:** Dev Agent
-**No new file — configuration and integration task**
+**No new file — validation and documentation task**
+
+**Note:** MCP wiring is built directly into the retrieve tool in Feature 2.
+This feature just verifies it works end to end and documents it for the judges.
 
 #### Tasks
-- [ ] Configure MongoDB MCP server connection using MONGODB_URI from .env
-- [ ] Wire the MCP server as the agent's database bridge in agent.py
-- [ ] Verify agent can call retrieve tool through MCP not through direct Python import
-- [ ] Document MCP configuration in `docs/ARCHITECTURE.md` under the agent section
+- [ ] Run a manual end-to-end test: start MCP server locally, send Query 1 through
+      the agent, confirm citations come back referencing real Atlas chunks
+- [ ] Document the MCP server setup command and required env vars in
+      `docs/ARCHITECTURE.md` under a new "Agent + MCP Setup" section
+- [ ] Confirm the MCP server command is in README.md "Running Locally" section
+- [ ] Verify no import of `retriever.py` or `vector_search.py` exists anywhere in
+      `src/agent/` — retrieval must go through MCP only
 
 ---
 

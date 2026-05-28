@@ -191,11 +191,10 @@ Response:
   "answer": str,
   "citations": [
     {
-      "title": str,
+      "source_name": str,       # human-readable doc title (file_title from chunk metadata)
       "date": str,
-      "file_id": str,
-      "drive_url": str,
-      "relevance_score": float
+      "drive_link": str | null, # constructed from file_id: https://drive.google.com/file/d/{file_id}
+      "rerank_score": int       # 1-10 from reranker, only chunks >= 6 are included
     }
   ],
   "created_doc_url": str | null   # only for PLAN mode

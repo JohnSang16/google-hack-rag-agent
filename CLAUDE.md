@@ -183,7 +183,7 @@ At the end of every session:
 
 See docs/DEMO_SCRIPT.md for full detail. The three queries that will be run live:
 1. "What were the key logistics challenges at Hacklanta and how did we solve them?"
-2. "How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the biggest spikes?"
+2. "How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?"
 3. "Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta." ← triggers PLAN mode, creates Google Doc
 
 Every retrieval component must return good results for these three queries. Tune metadata, chunking, and reranker with these in mind.

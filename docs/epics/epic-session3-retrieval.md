@@ -18,7 +18,7 @@ the top 3 most relevant chunks with source metadata.
 The three demo queries are:
 1. RECALL: "What were the key logistics challenges at Hacklanta and how did we solve them?"
 2. ANALYZE: "How has our event attendance grown from Fall 2025 to Spring 2026,
-             and which events drove the biggest spikes?"
+             and which events drove the most engagement?"
 3. PLAN: "Draft a planning brief for our next major hackathon based on everything
           we learned from Hacklanta."
 
@@ -54,11 +54,16 @@ The three demo queries are:
 
 #### Tasks
 - [ ] Accept query string and list of up to 10 candidate chunks
-- [ ] Call Gemini to score each chunk 0.0 to 1.0 for relevance to the query
-- [ ] Gemini prompt must explain the scoring criteria: specificity, recency, direct relevance
-- [ ] Sort by score descending, return top 3
-- [ ] Return each chunk with its rerank score attached for citation display
-- [ ] Write `tests/test_reranker.py` with a mock set of 10 chunks and verify top 3 returned
+- [ ] Use the exact reranker prompt from `docs/ARCHITECTURE.md` — do not write a new one
+- [ ] Gemini returns an integer 1–10 per chunk — parse it as an int, not a float
+- [ ] Keep chunks scoring >= 6. If fewer than 2 chunks score >= 6, keep top 2 regardless
+      (this fallback logic is specified in ARCHITECTURE.md and must be implemented exactly)
+- [ ] Sort kept chunks by score descending, return top 3
+- [ ] Return each chunk with its integer rerank_score attached for citation display
+- [ ] Write `tests/test_reranker.py` with a mock set of 10 chunks:
+      - Test: chunks scoring >= 6 are returned, chunks scoring < 6 are dropped
+      - Test: if only 1 chunk scores >= 6, the top 2 by score are returned (fallback)
+      - Test: scores are sorted descending in the returned list
 
 ---
 
@@ -103,7 +108,7 @@ The three demo queries are:
 - [ ] Query 1 results include at least one chunk with event_name="hacklanta"
 - [ ] Query 2 results include at least one chunk from an attendance spreadsheet summary
 - [ ] Query 3 results include at least one chunk from a planning or retrospective document
-- [ ] No chunk returned has a rerank score below 0.3 for its matched query
+- [ ] No chunk returned has a rerank score below 6 (on the 1–10 scale) for its matched query
 - [ ] retriever.py returns in under 3 seconds for all 3 demo queries
 
 ---

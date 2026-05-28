@@ -36,14 +36,22 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
   so that I can export documents programmatically without manual intervention
 - As the pipeline I want to export any Drive doc to plain text by file ID
   so that downstream modules receive consistent string input regardless of file type
+- As the pipeline I want to export a multi-tab Google Doc as one text block per tab
+  so that large docs like the Progsu Master Doc are chunked cleanly by section
 
 #### Tasks
 - [ ] Authenticate using service account JSON at path in `GOOGLE_DRIVE_CREDENTIALS` env var
-- [ ] Export Google Docs to plain text via Drive API export endpoint
+- [ ] Export Google Docs to plain text via Drive API export endpoint (`export` method)
 - [ ] Export Google Sheets to CSV text (for attendance spreadsheets)
 - [ ] Handle 403 permission errors gracefully with a clear log message
 - [ ] Return: `{ file_id, file_name, doc_type, raw_text, mime_type }`
-- [ ] Write `tests/test_drive_reader.py` using a mock Drive API response
+- [ ] Add a second export function `export_tabs(file_id) -> list[{ tab_id, tab_name, raw_text }]`
+      that uses the Google Docs API (`documents.get`) to read each tab individually
+- [ ] `export_tabs` must handle the case where a doc has no tabs (return single-item list)
+- [ ] Write `tests/test_drive_reader.py` with:
+      - Test: normal single-file export returns expected shape
+      - Test: `export_tabs` returns one item per tab with correct tab_name
+      - Test: `export_tabs` on a single-tab doc returns a one-item list (not an error)
 
 ---
 
@@ -80,7 +88,7 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Implement date header splitting for meeting notes (new chunk at each date)
 - [ ] Implement ## heading splitting for planning docs
 - [ ] Enforce 800 token max per chunk — split further if needed
-- [ ] Add 50 token overlap between adjacent chunks to preserve context at boundaries
+- [ ] Add 100 token overlap between adjacent chunks to preserve context at boundaries
 - [ ] Each chunk gets metadata: `{ file_id, chunk_index, doc_type, source_heading, token_count }`
 - [ ] Write `tests/test_chunker.py` covering: normal split, oversized chunk, overlap, each doc_type
 
@@ -155,11 +163,43 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Normal path: drive_reader -> pii_filter -> chunker -> noise_filter -> embedder -> storer
 - [ ] Aggregate path: drive_reader -> summarizer -> embedder -> storer (skip chunker and noise filter —
       the summary is already clean and signal-only)
-- [ ] Log per file: file name, path taken (normal/aggregate), chunks produced, errors
+- [ ] Tab export path: drive_reader.export_tabs() -> pii_filter -> chunker -> noise_filter
+      -> embedder -> storer (one chunk set per tab, metadata carries tab name as source_heading)
+- [ ] Log per file: file name, path taken (normal/aggregate/tab-export), chunks produced, errors
 - [ ] If any single file fails, log the error and continue to the next file
 - [ ] At the end print a summary: total files, total chunks stored, total errors
 - [ ] Write `tests/test_run_ingestion.py` using mocked versions of all sub-modules
-      including a test that verifies aggregate files take the aggregate path
+      including tests that verify aggregate and tab-export files each take the correct path
+
+---
+
+### Feature 9: Tab Export Router
+**Owner:** Dev Agent
+**File:** `src/ingestion/aggregate_router.py` (extend this existing file)
+
+**Why the same pattern as aggregate routing:** The Progsu Master Doc (22MB,
+file ID `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM`) cannot be exported as a single
+file — it will produce an unusable blob. It must be exported tab by tab. This is the only
+known file requiring this treatment, but the pattern is consistent and easy to extend.
+The Claude Workshop tab and Hacklanta tab inside this doc are required for demo Query 2.
+
+#### Stories
+- As the pipeline I want to know whether a file needs tab-by-tab export
+  so that large multi-tab docs are ingested cleanly instead of as one unusable blob
+
+#### Tasks
+- [ ] Define `TAB_EXPORT_FILE_IDS` as a set in `aggregate_router.py` containing exactly one
+      file ID: `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM` (Progsu Master Doc)
+      — sourced from `docs/DATA_MAP.md` lines 121-129
+- [ ] Expose a single function: `def should_tab_export(file_id: str) -> bool`
+- [ ] Return `True` if file_id is in `TAB_EXPORT_FILE_IDS`, `False` otherwise
+- [ ] When tab-exporting this file prioritize these tabs (from DATA_MAP.md):
+      tab `t.s9nk0rrx742x` (Events + Finished Events), Carousel tab, Outreach tab
+      — log a warning if a prioritized tab is not found in the doc
+- [ ] Add to `tests/test_aggregate_router.py`:
+      - Test: Progsu Master Doc file ID returns True from `should_tab_export`
+      - Test: a normal file ID returns False from `should_tab_export`
+      - Test: `should_aggregate` and `should_tab_export` never return True for the same file ID
 
 ---
 
@@ -199,6 +239,8 @@ A dedicated, independently testable module makes this decision explicit and veri
 - [ ] noise filter pass rate is logged and above 40% (if below, prompt needs tuning)
 - [ ] PII strip log shows at least one strip on any file containing member data
 - [ ] All 9 aggregate file IDs route to summarizer path — verified by test_aggregate_router.py
+- [ ] Progsu Master Doc file ID routes to tab-export path — verified by test_aggregate_router.py
+- [ ] Atlas contains chunks with tab names (e.g. "Events + Finished Events") as source_heading
 - [ ] No chunk stored in Atlas contains a raw email address or phone number
 
 ---
