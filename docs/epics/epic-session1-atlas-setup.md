@@ -9,13 +9,13 @@
 This is a RAG-based AI chief of staff for a student tech org. We store document chunks
 with 768-dimensional embeddings in MongoDB Atlas and query them via $vectorSearch.
 Two files are already written: `src/ingestion/storer.py` and `src/retrieval/vector_search.py`.
-The Atlas cluster does NOT exist yet — that is a manual step the human must complete first.
+The Atlas cluster does NOT exist yet  -  that is a manual step the human must complete first.
 
 **DO NOT attempt to run any DB tests until the human confirms Atlas is live.**
 
 ---
 
-## Manual Steps (Human Only — Agents Cannot Do These)
+## Manual Steps (Human Only  -  Agents Cannot Do These)
 These require browser access and sensitive credentials. Flag these to the human and wait.
 
 1. Create free Atlas cluster at cloud.mongodb.com
@@ -100,7 +100,7 @@ These require browser access and sensitive credentials. Flag these to the human 
       `GCP_REGION=us-central1`
       `AGENT_ENGINE_ENDPOINT=your_vertex_agent_engine_endpoint`
       `NOISE_FILTER_THRESHOLD=0.5`
-- [ ] Verify `.env` is in `.gitignore` — add it if missing
+- [ ] Verify `.env` is in `.gitignore`  -  add it if missing
 - [ ] Verify `.env.example` is NOT in `.gitignore`
 
 ---

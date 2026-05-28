@@ -82,7 +82,7 @@ PLAN mode shows a clickable link to the created Google Doc.
 **Owner:** Dev Agent
 **File:** `src/frontend/src/components/ModeSelector.tsx`
 
-**Note:** Mode is classified automatically by the agent — users do not pick it manually.
+**Note:** Mode is classified automatically by the agent  -  users do not pick it manually.
 The three mode labels are shown here as a legend so users understand what each badge means
 before they start chatting. No toggle, no override, no POST /chat field needed.
 
@@ -95,7 +95,7 @@ before they start chatting. No toggle, no override, no POST /chat field needed.
 - [ ] Each chip has a one-line tooltip: what kind of question triggers this mode
       RECALL: "What happened, what was decided"
       ANALYZE: "Trends, comparisons, growth over time"
-      PLAN: "Draft a doc, plan an event — creates a Google Doc"
+      PLAN: "Draft a doc, plan an event  -  creates a Google Doc"
 - [ ] No toggle state, no click handler, no POST /chat field
 - [ ] Position above the chat input as a passive reference strip
 
@@ -114,7 +114,7 @@ before they start chatting. No toggle, no override, no POST /chat field needed.
 - [ ] Show: source_name, formatted date, relevance indicator based on rerank_score
 - [ ] If drive_link is present make source_name a clickable link opening in new tab
 - [ ] If multiple citations collapse them under a "Sources (3)" expandable section
-- [ ] Keep cards compact — this is supporting info not the main content
+- [ ] Keep cards compact  -  this is supporting info not the main content
 
 ---
 

@@ -160,7 +160,7 @@ When PLAN mode is triggered, call the Drive API to create a document:
 PLAN_OUTPUT_FOLDER_ID = "11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-"  # progsu Drive root
 
 # Doc title format
-title = f"[AI Generated] {query[:60]} — {datetime.now().strftime('%Y-%m-%d')}"
+title = f"[AI Generated] {query[:60]}  -  {datetime.now().strftime('%Y-%m-%d')}"
 ```
 
 The created doc should include:

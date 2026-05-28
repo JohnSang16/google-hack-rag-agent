@@ -11,14 +11,14 @@ calls the retrieval tool, and generates a response with citations. In PLAN mode
 it additionally creates a real Google Doc via the Drive API and returns the link.
 
 The agent talks to Atlas through the MongoDB MCP server, not through direct Python calls.
-This is intentional — it demonstrates MCP tool use for the hackathon judges.
+This is intentional  -  it demonstrates MCP tool use for the hackathon judges.
 
 **Read these before writing any code:**
-- `docs/ARCHITECTURE.md` — agent design and tool definitions
-- `docs/DEMO_SCRIPT.md` — the exact 3 queries and expected response shapes
-- `src/retrieval/retriever.py` — read for context on the $vectorSearch pipeline and reranker
-  logic only. The agent does NOT import or call this file — retrieval goes through MCP.
-- `docs/JUDGING_ALIGNMENT.md` — what judges are looking for
+- `docs/ARCHITECTURE.md`  -  agent design and tool definitions
+- `docs/DEMO_SCRIPT.md`  -  the exact 3 queries and expected response shapes
+- `src/retrieval/retriever.py`  -  read for context on the $vectorSearch pipeline and reranker
+  logic only. The agent does NOT import or call this file  -  retrieval goes through MCP.
+- `docs/JUDGING_ALIGNMENT.md`  -  what judges are looking for
 
 ---
 
@@ -49,9 +49,9 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 **Owner:** Dev Agent
 **File:** `src/agent/tools/retrieve.py`
 
-**Important — read before building:** This tool does NOT wrap `retriever.py` directly.
+**Important  -  read before building:** This tool does NOT wrap `retriever.py` directly.
 It calls the MongoDB MCP server, which in turn queries Atlas. This is intentional and
-non-negotiable — the MongoDB track judges specifically check that the agent uses MCP
+non-negotiable  -  the MongoDB track judges specifically check that the agent uses MCP
 as its database bridge, not direct Python imports. The Python retrieval layer
 (`retriever.py`, `reranker.py`) is used during ingestion validation only, not by the agent.
 
@@ -60,7 +60,7 @@ The MCP server must be running locally before this tool can be tested:
 npx -y mongodb-mcp-server --connectionString $MONGODB_URI
 ```
 This is a one-time local setup step. What runs locally is identical to what runs in
-production — no divergence between dev and demo day.
+production  -  no divergence between dev and demo day.
 
 #### Stories
 - As the agent I want a registered tool that fetches relevant chunks for any query
@@ -69,17 +69,17 @@ production — no divergence between dev and demo day.
   so that the project meets the MongoDB track integration requirement
 
 #### Tasks
-- [ ] Start local MongoDB MCP server using MONGODB_URI — document this as a required
+- [ ] Start local MongoDB MCP server using MONGODB_URI  -  document this as a required
       dev setup step in README.md under "Running Locally"
 - [ ] Define the retrieve tool as a Gemini function calling tool with this input schema:
       `{ query: string, filters: { event_name?, doc_type?, date_from?, date_to? } }`
 - [ ] Tool implementation calls the MCP server's `aggregate` tool with the $vectorSearch
-      pipeline (same pipeline as `vector_search.py` — copy the pipeline definition here,
+      pipeline (same pipeline as `vector_search.py`  -  copy the pipeline definition here,
       do not import from vector_search.py)
 - [ ] After getting top-10 results from MCP, call the Gemini reranker prompt directly
       (copy the prompt from `docs/ARCHITECTURE.md`) to score and return top 3
 - [ ] Tool output schema: list of `{ text, source_name, date, drive_link?, rerank_score }`
-- [ ] Write `tests/test_retrieve_tool.py` with a mocked MCP server response —
+- [ ] Write `tests/test_retrieve_tool.py` with a mocked MCP server response  - 
       do not make real Atlas calls in tests
 
 ---
@@ -116,7 +116,7 @@ production — no divergence between dev and demo day.
 - [ ] Configure MongoDB MCP server as the DB bridge for retrieval
 - [ ] System prompt must instruct the agent to:
       Always cite sources using the source_name and date from retrieved chunks
-      Never answer from general knowledge — only from retrieved chunks
+      Never answer from general knowledge  -  only from retrieved chunks
       In PLAN mode: always create a Google Doc and return the link
       In ANALYZE mode: structure response with clear trends and data points
       In RECALL mode: answer directly and concisely with citations
@@ -147,7 +147,7 @@ production — no divergence between dev and demo day.
 
 ### Feature 6: MCP Setup Verification
 **Owner:** Dev Agent
-**No new file — validation and documentation task**
+**No new file  -  validation and documentation task**
 
 **Note:** MCP wiring is built directly into the retrieve tool in Feature 2.
 This feature just verifies it works end to end and documents it for the judges.
@@ -159,16 +159,16 @@ This feature just verifies it works end to end and documents it for the judges.
       `docs/ARCHITECTURE.md` under a new "Agent + MCP Setup" section
 - [ ] Confirm the MCP server command is in README.md "Running Locally" section
 - [ ] Verify no import of `retriever.py` or `vector_search.py` exists anywhere in
-      `src/agent/` — retrieval must go through MCP only
+      `src/agent/`  -  retrieval must go through MCP only
 
 ---
 
 ### Feature 7: Vertex AI Agent Engine Deployment
 **Owner:** Dev Agent
-**No new file — deployment and configuration task**
+**No new file  -  deployment and configuration task**
 
 **Why this must happen in Session 4, not Session 6:** Judges verify the agent is hosted on
-Vertex AI Agent Engine, not running locally. Deploying here — while the agent is being built —
+Vertex AI Agent Engine, not running locally. Deploying here  -  while the agent is being built  - 
 catches auth, tool registration, and API permission issues while there is still time to fix them.
 Leaving this to Session 6 risks a last-day blocker with no recovery time before June 11.
 
@@ -177,7 +177,7 @@ Leaving this to Session 6 risks a last-day blocker with no recovery time before 
   so that the project qualifies for the "Google Cloud" technology criterion
 
 #### Tasks
-- [ ] Enable the Vertex AI Agent Engine API in GCP project (flag to human — requires console access)
+- [ ] Enable the Vertex AI Agent Engine API in GCP project (flag to human  -  requires console access)
 - [ ] Ensure `GCP_PROJECT_ID` and `GCP_REGION` env vars are set (already in CLAUDE.md)
 - [ ] Package agent.py for deployment: confirm all tool definitions and system prompt are
       expressed as Agent Builder-compatible tool schemas (not raw Python callables)
@@ -191,7 +191,7 @@ Leaving this to Session 6 risks a last-day blocker with no recovery time before 
 - [ ] Update agent.py to call the deployed Agent Engine endpoint when
       `AGENT_ENGINE_ENDPOINT` env var is set, falling back to local Gemini SDK when not set
 - [ ] Add `AGENT_ENGINE_ENDPOINT` to `.env.example`
-- [ ] Run Query 1 against the deployed Agent Engine endpoint — confirm same response
+- [ ] Run Query 1 against the deployed Agent Engine endpoint  -  confirm same response
       as local
 
 #### Manual Steps (Flag To Human Before Starting)
@@ -205,7 +205,7 @@ Leaving this to Session 6 risks a last-day blocker with no recovery time before 
 - [ ] POST /chat returns correct shape for all 3 demo queries
 - [ ] PLAN mode response includes a real created_doc_url pointing to a live Google Doc
 - [ ] All citations include source_name and date
-- [ ] Agent never answers without retrieving — verify by checking citations are always present
+- [ ] Agent never answers without retrieving  -  verify by checking citations are always present
 - [ ] Server returns 500 with useful error message if Atlas is unreachable
 - [ ] Mode classifier correctly classifies all 3 demo queries
 - [ ] Agent Engine endpoint responds to Query 1 with correct citations

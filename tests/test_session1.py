@@ -96,7 +96,7 @@ DUMMY_CHUNKS = [
         "text": (
             "Hacklanta 2025: 120 attendees, venue was Georgia Tech Klaus building. "
             "Sponsors included TechCorp and CloudCo. Main logistics challenge was catering "
-            "running out early — resolved by ordering 30% more next time."
+            "running out early  -  resolved by ordering 30% more next time."
         ),
         "embedding": random_embedding(42),  # distinct seed → distinct vector
         "metadata": {

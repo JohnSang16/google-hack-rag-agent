@@ -19,7 +19,7 @@ new features. Fix, tune, deploy, document.
 
 ### Feature 1: Demo Consistency Testing
 **Owner:** QA Agent
-**No new files — validation only**
+**No new files  -  validation only**
 
 #### Tasks
 - [ ] Run all 3 demo queries 5 times each against the full stack
@@ -37,7 +37,7 @@ new features. Fix, tune, deploy, document.
 - [ ] If Query 1 fails more than once: check Hacklanta chunks in Atlas, verify event_name metadata
 - [ ] If Query 2 fails more than once: verify attendance summary chunks were stored
 - [ ] If noise filter pass rate from Session 2 was below 40%: loosen the Gemini prompt
-- [ ] If noise filter pass rate was above 85%: tighten it — too much noise is getting through
+- [ ] If noise filter pass rate was above 85%: tighten it  -  too much noise is getting through
 - [ ] Re-ingest affected files if chunking or filtering changes are made
 - [ ] Document all tuning changes in `docs/TUNING_LOG.md`
 
@@ -48,7 +48,7 @@ new features. Fix, tune, deploy, document.
 **Only do this if large file retrieval is poor**
 
 #### Tasks
-- [ ] Marketing Meetings file (26MB) — if retrieval misses it, reduce chunk size to 400 tokens
+- [ ] Marketing Meetings file (26MB)  -  if retrieval misses it, reduce chunk size to 400 tokens
 - [ ] Re-ingest with updated chunker settings
 - [ ] Re-validate demo queries after re-ingestion
 
@@ -74,13 +74,13 @@ new features. Fix, tune, deploy, document.
 - [ ] Add MIT license file to root if not present
 - [ ] Write `README.md` covering: what this is, how to run it locally, env vars needed
 - [ ] README must include: architecture diagram description, the 3 demo queries, setup steps
-- [ ] Make repo public (human does this — flag it as a manual step)
+- [ ] Make repo public (human does this  -  flag it as a manual step)
 
 ---
 
 ### Feature 6: Backend Deployment
 **Owner:** Dev Agent
-**Human must set Cloud Run env vars — flag this as a manual step**
+**Human must set Cloud Run env vars  -  flag this as a manual step**
 
 #### Tasks
 - [ ] Write `Dockerfile` for the FastAPI backend
@@ -106,7 +106,7 @@ new features. Fix, tune, deploy, document.
 ---
 
 ### Feature 8: Devpost Submission
-**Owner:** Human — agents assist with draft only**
+**Owner:** Human  -  agents assist with draft only**
 
 #### Tasks (Agent assists, human submits)
 - [ ] Read `docs/JUDGING_ALIGNMENT.md` for the pitch framing

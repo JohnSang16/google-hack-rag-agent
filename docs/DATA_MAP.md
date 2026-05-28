@@ -1,11 +1,11 @@
-# Data Map — Google Drive Ingestion
+# Data Map  -  Google Drive Ingestion
 
 Drive root folder: `11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-`
 
 ## Labels
-- **INGEST** — read, chunk, embed, store directly
-- **AGGREGATE** — summarize first (strip PII), then store the summary
-- **SKIP** — do not ingest
+- **INGEST**  -  read, chunk, embed, store directly
+- **AGGREGATE**  -  summarize first (strip PII), then store the summary
+- **SKIP**  -  do not ingest
 
 ---
 
@@ -118,15 +118,15 @@ These contain PII rows. Summarize to aggregate stats only before ingesting.
 
 ---
 
-## Special Case: Progsu Master Doc (22MB — Tab Export Required)
+## Special Case: Progsu Master Doc (22MB  -  Tab Export Required)
 
 File ID: `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM`
 
 Cannot be exported as one file. Use Google Docs API to export each tab individually.
 High-value tabs to prioritize:
-- `t.s9nk0rrx742x` — Events + Finished Events (Claude Workshop run of show, Hacklanta tab)
-- Carousel tab — Claude Code carousel content (MCPs, skills, subagents)
-- Outreach tab — sponsor strategy, one-pager links
+- `t.s9nk0rrx742x`  -  Events + Finished Events (Claude Workshop run of show, Hacklanta tab)
+- Carousel tab  -  Claude Code carousel content (MCPs, skills, subagents)
+- Outreach tab  -  sponsor strategy, one-pager links
 
 ## Skip List
 

@@ -21,10 +21,10 @@ in run_ingestion.py. Chunking rules and PII rules live in docs referenced below.
 Do NOT hardcode any API keys. All credentials come from environment variables in `.env`.
 
 **Read these files before writing any code:**
-- `docs/ARCHITECTURE.md` — overall system design
-- `docs/DATA_MAP.md` — Priority 1 files to run on at the end
-- `CLAUDE.md` — chunking rules per doc_type
-- `docs/PII_RULES.md` — what counts as PII and how to handle it
+- `docs/ARCHITECTURE.md`  -  overall system design
+- `docs/DATA_MAP.md`  -  Priority 1 files to run on at the end
+- `CLAUDE.md`  -  chunking rules per doc_type
+- `docs/PII_RULES.md`  -  what counts as PII and how to handle it
 
 ---
 
@@ -89,11 +89,11 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 #### Tasks
 - [ ] Read `CLAUDE.md` for the chunking rules per doc_type
 - [ ] Implement date header splitting for meeting notes (new chunk at each date)
-- [ ] Also split meeting notes on "---" separator (CLAUDE.md rule — both triggers apply)
-- [ ] Implement ## heading splitting for event_logistics doc_type (not "planning docs" —
+- [ ] Also split meeting notes on "---" separator (CLAUDE.md rule  -  both triggers apply)
+- [ ] Implement ## heading splitting for event_logistics doc_type (not "planning docs"  - 
       use the exact doc_type value from the MongoDB schema)
-- [ ] Small docs (<50KB): store as single chunk or split by paragraph — do not force heading splits
-- [ ] Enforce 800 token max per chunk — split further if needed
+- [ ] Small docs (<50KB): store as single chunk or split by paragraph  -  do not force heading splits
+- [ ] Enforce 800 token max per chunk  -  split further if needed
 - [ ] Add 100 token overlap between adjacent chunks to preserve context at boundaries
 - [ ] Each chunk gets metadata: `{ file_id, chunk_index, doc_type, source_heading, token_count }`
 - [ ] Write `tests/test_chunker.py` covering: normal split, oversized chunk, overlap, each doc_type
@@ -131,7 +131,7 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Call Google text-embedding-004 model via Gemini API
 - [ ] Input: chunk text string
 - [ ] Output: list of 768 floats
-- [ ] Validate output dimension is exactly 768 — raise if not
+- [ ] Validate output dimension is exactly 768  -  raise if not
 - [ ] Handle API rate limits with exponential backoff, max 3 retries
 - [ ] Write `tests/test_embedder.py` using a mocked API response to avoid real API calls in CI
 
@@ -167,7 +167,7 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Accept a list of file IDs as input (from command line or config file)
 - [ ] For each file: call the Aggregate Router (Feature 8) to decide which path to take
 - [ ] Normal path: drive_reader -> pii_filter -> chunker -> noise_filter -> embedder -> storer
-- [ ] Aggregate path: drive_reader -> summarizer -> embedder -> storer (skip chunker and noise filter —
+- [ ] Aggregate path: drive_reader -> summarizer -> embedder -> storer (skip chunker and noise filter  - 
       the summary is already clean and signal-only)
 - [ ] Tab export path: drive_reader.export_tabs() -> pii_filter -> chunker -> noise_filter
       -> embedder -> storer (one chunk set per tab, metadata carries tab name as source_heading)
@@ -183,7 +183,7 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 **Owner:** Dev Agent
 **File:** `src/ingestion/aggregate_router.py`
 
-**Why this is a separate feature:** The routing decision — normal pipeline vs summarizer — is
+**Why this is a separate feature:** The routing decision  -  normal pipeline vs summarizer  -  is
 the exact place a silent failure can cause PII to leak into Atlas with no error thrown.
 A dedicated, independently testable module makes this decision explicit and verifiable.
 
@@ -192,7 +192,7 @@ A dedicated, independently testable module makes this decision explicit and veri
   so that sensitive attendee data is never stored as raw rows in Atlas
 
 #### Tasks
-- [ ] Define `AGGREGATE_FILE_IDS` as a set of file ID strings — copy the exact list from
+- [ ] Define `AGGREGATE_FILE_IDS` as a set of file ID strings  -  copy the exact list from
       `docs/PII_RULES.md` lines 38-46 (9 file IDs)
 - [ ] Expose a single function: `def should_aggregate(file_id: str) -> bool`
 - [ ] Return `True` if the file_id is in `AGGREGATE_FILE_IDS`, `False` otherwise
@@ -212,7 +212,7 @@ A dedicated, independently testable module makes this decision explicit and veri
 
 **Why the same pattern as aggregate routing:** The Progsu Master Doc (22MB,
 file ID `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM`) cannot be exported as a single
-file — it will produce an unusable blob. It must be exported tab by tab. This is the only
+file  -  it will produce an unusable blob. It must be exported tab by tab. This is the only
 known file requiring this treatment, but the pattern is consistent and easy to extend.
 The Claude Workshop tab and Hacklanta tab inside this doc are required for demo Query 2.
 
@@ -223,12 +223,12 @@ The Claude Workshop tab and Hacklanta tab inside this doc are required for demo 
 #### Tasks
 - [ ] Define `TAB_EXPORT_FILE_IDS` as a set in `aggregate_router.py` containing exactly one
       file ID: `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM` (Progsu Master Doc)
-      — sourced from `docs/DATA_MAP.md` lines 121-129
+       -  sourced from `docs/DATA_MAP.md` lines 121-129
 - [ ] Expose a single function: `def should_tab_export(file_id: str) -> bool`
 - [ ] Return `True` if file_id is in `TAB_EXPORT_FILE_IDS`, `False` otherwise
 - [ ] When tab-exporting this file prioritize these tabs (from DATA_MAP.md):
       tab `t.s9nk0rrx742x` (Events + Finished Events), Carousel tab, Outreach tab
-      — log a warning if a prioritized tab is not found in the doc
+       -  log a warning if a prioritized tab is not found in the doc
 - [ ] Add to `tests/test_aggregate_router.py`:
       - Test: Progsu Master Doc file ID returns True from `should_tab_export`
       - Test: a normal file ID returns False from `should_tab_export`
@@ -244,8 +244,8 @@ The Claude Workshop tab and Hacklanta tab inside this doc are required for demo 
 - [ ] Chunk count logged matches chunks visible in Atlas after a real run
 - [ ] noise filter pass rate is logged and above 40% (if below, prompt needs tuning)
 - [ ] PII strip log shows at least one strip on any file containing member data
-- [ ] All 9 aggregate file IDs route to summarizer path — verified by test_aggregate_router.py
-- [ ] Progsu Master Doc file ID routes to tab-export path — verified by test_aggregate_router.py
+- [ ] All 9 aggregate file IDs route to summarizer path  -  verified by test_aggregate_router.py
+- [ ] Progsu Master Doc file ID routes to tab-export path  -  verified by test_aggregate_router.py
 - [ ] Atlas contains chunks with tab names (e.g. "Events + Finished Events") as source_heading
 - [ ] No chunk stored in Atlas contains a raw email address or phone number
 

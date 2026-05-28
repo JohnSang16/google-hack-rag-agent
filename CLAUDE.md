@@ -1,4 +1,4 @@
-# progsu Intelligence Agent — CLAUDE.md
+# progsu Intelligence Agent  -  CLAUDE.md
 
 You are building a RAG agent for a Google Cloud hackathon. Read this entire file before writing any code.
 Reference files: docs/ARCHITECTURE.md, docs/DATA_MAP.md, docs/PII_RULES.md, docs/DEMO_SCRIPT.md
@@ -20,7 +20,7 @@ These are REQUIRED by the Google Cloud Rapid Agent Hackathon MongoDB track. Do n
 - **LLM + Embeddings**: Gemini API (gemini-2.0-flash for generation, text-embedding-004 for embeddings)
 - **Agent Orchestration**: Google Cloud Agent Builder (Vertex AI Agent Engine)
 - **Vector + Document Store**: MongoDB Atlas with Atlas Vector Search
-- **Agent-to-DB Bridge**: MongoDB MCP server (github.com/mongodb-js/mongodb-mcp-server) — this is how the agent calls the database
+- **Agent-to-DB Bridge**: MongoDB MCP server (github.com/mongodb-js/mongodb-mcp-server)  -  this is how the agent calls the database
 - **Drive Integration**: Google Drive API (already have OAuth via MCP) for ingestion + Google Doc creation
 - **Frontend**: React (Vite) with TypeScript
 
@@ -28,13 +28,13 @@ Do not use: OpenAI, Pinecone, LangChain, ChromaDB, or any vector DB other than M
 
 ---
 
-## Three Agent Modes (Core UX — Required for Judging)
+## Three Agent Modes (Core UX  -  Required for Judging)
 
 Every user query is classified into one of three modes before retrieval:
 
-1. **RECALL** — "What happened at X?" → retrieval + cited answer
-2. **ANALYZE** — "How have metrics trended?" → cross-document synthesis + data
-3. **PLAN** — "Help plan X" → retrieval + synthesis + CREATE a Google Doc in Drive
+1. **RECALL**  -  "What happened at X?" → retrieval + cited answer
+2. **ANALYZE**  -  "How have metrics trended?" → cross-document synthesis + data
+3. **PLAN**  -  "Help plan X" → retrieval + synthesis + CREATE a Google Doc in Drive
 
 Mode 3 (PLAN) is the agentic differentiator. It must produce a real artifact, not just text.
 
@@ -80,7 +80,7 @@ Every ingested chunk MUST have this exact structure:
 
 ---
 
-## Differentiators — Never Cut These
+## Differentiators  -  Never Cut These
 
 These are what separate this from a generic RAG demo. Every one must be implemented:
 
@@ -151,7 +151,7 @@ src/
       App.tsx
       components/
         ChatInterface.tsx
-        ModeSelector.tsx  (static mode legend — no toggle, classifier decides mode)
+        ModeSelector.tsx  (static mode legend  -  no toggle, classifier decides mode)
         CitationCard.tsx
         MessageBubble.tsx
 ```
@@ -163,7 +163,7 @@ src/
 At the start of every session:
 1. Read this file
 2. Check TODO.md for current task
-3. Build only the scoped task — do not refactor other components
+3. Build only the scoped task  -  do not refactor other components
 4. Update TODO.md when task is complete
 
 At the end of every session:
@@ -178,7 +178,7 @@ At the end of every session:
 - Async where possible (ingestion can be sync, retrieval should be async)
 - Type hints on every function
 - Every external API call wrapped in try/except with informative error messages
-- Never hardcode credentials — always use environment variables
+- Never hardcode credentials  -  always use environment variables
 - Log chunk counts, noise filter pass rates, embedding times for demo visibility
 
 ---
@@ -213,7 +213,7 @@ When told to "start session N" or "run epic session N":
 - Architect        -> .claude/skills/bmad-agent-architect
 - Analyst          -> .claude/skills/bmad-agent-analyst
 
-### Sensitive Operations — Always Flag To Human
+### Sensitive Operations  -  Always Flag To Human
 Never do these autonomously:
 - Create or modify Atlas clusters, databases, or indexes
 - Commit or push to main branch
