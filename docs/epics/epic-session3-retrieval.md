@@ -36,7 +36,7 @@ The three demo queries are:
 
 #### Tasks
 - [ ] Read existing vector_search.py from Session 1
-- [ ] Update to return top 10 results (not just top 3) — reranker will trim to 3
+- [ ] Confirm top_k defaults to 10 (already set in Session 1) — verify, do not change
 - [ ] Confirm metadata pre-filter works for event_name, doc_type, and date range
 - [ ] Return full chunk document including text, metadata, and similarity score
 - [ ] Add optional date range filter: `date_from` and `date_to` as parameters
@@ -121,6 +121,5 @@ Reranker scores are attached to each result. Performance under 3 seconds per que
 
 ## Handoff To Session 4
 Confirm before Session 4 starts:
-- retriever.py is the single entry point the agent will call
-- All 3 demo queries validated manually and returning correct results
+- All 3 demo queries return correct results through retriever.py — Atlas data confirmed good for Session 4 agent wiring
 - Tuning decisions documented in TUNING_LOG.md

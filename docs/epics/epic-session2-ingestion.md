@@ -7,12 +7,15 @@
 
 ## Context For Agents
 This pipeline takes a list of Google Drive file IDs and produces clean, embedded chunks
-stored in MongoDB Atlas. It runs in this exact order:
+stored in MongoDB Atlas. There are three paths depending on the file type:
 
 ```
-drive_reader -> pii_filter -> chunker -> noise_filter -> embedder -> storer
+Normal:    drive_reader -> pii_filter -> chunker -> noise_filter -> embedder -> storer
+Aggregate: drive_reader -> summarizer -> embedder -> storer
+Tab export: drive_reader.export_tabs() -> pii_filter -> chunker -> noise_filter -> embedder -> storer
 ```
 
+The aggregate_router (Feature 8/9) decides which path each file takes.
 Each module is independent. Build and test each one before wiring them together
 in run_ingestion.py. Chunking rules and PII rules live in docs referenced below.
 Do NOT hardcode any API keys. All credentials come from environment variables in `.env`.
@@ -86,7 +89,10 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 #### Tasks
 - [ ] Read `CLAUDE.md` for the chunking rules per doc_type
 - [ ] Implement date header splitting for meeting notes (new chunk at each date)
-- [ ] Implement ## heading splitting for planning docs
+- [ ] Also split meeting notes on "---" separator (CLAUDE.md rule — both triggers apply)
+- [ ] Implement ## heading splitting for event_logistics doc_type (not "planning docs" —
+      use the exact doc_type value from the MongoDB schema)
+- [ ] Small docs (<50KB): store as single chunk or split by paragraph — do not force heading splits
 - [ ] Enforce 800 token max per chunk — split further if needed
 - [ ] Add 100 token overlap between adjacent chunks to preserve context at boundaries
 - [ ] Each chunk gets metadata: `{ file_id, chunk_index, doc_type, source_heading, token_count }`
@@ -173,6 +179,33 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 
 ---
 
+### Feature 8: Aggregate Router
+**Owner:** Dev Agent
+**File:** `src/ingestion/aggregate_router.py`
+
+**Why this is a separate feature:** The routing decision — normal pipeline vs summarizer — is
+the exact place a silent failure can cause PII to leak into Atlas with no error thrown.
+A dedicated, independently testable module makes this decision explicit and verifiable.
+
+#### Stories
+- As the pipeline I want to know whether a file should be summarized or chunked
+  so that sensitive attendee data is never stored as raw rows in Atlas
+
+#### Tasks
+- [ ] Define `AGGREGATE_FILE_IDS` as a set of file ID strings — copy the exact list from
+      `docs/PII_RULES.md` lines 38-46 (9 file IDs)
+- [ ] Expose a single function: `def should_aggregate(file_id: str) -> bool`
+- [ ] Return `True` if the file_id is in `AGGREGATE_FILE_IDS`, `False` otherwise
+- [ ] Log a warning if an unknown file_id is passed (not in aggregate list and not in
+      DATA_MAP.md known IDs) so unexpected files are visible in logs
+- [ ] Write `tests/test_aggregate_router.py` with:
+      - Test: a known aggregate file ID returns True
+      - Test: a known normal file ID returns False
+      - Test: all 9 AGGREGATE_FILE_IDS from PII_RULES.md return True (regression guard)
+      - Test: an unknown file ID returns False and logs a warning
+
+---
+
 ### Feature 9: Tab Export Router
 **Owner:** Dev Agent
 **File:** `src/ingestion/aggregate_router.py` (extend this existing file)
@@ -200,33 +233,6 @@ The Claude Workshop tab and Hacklanta tab inside this doc are required for demo 
       - Test: Progsu Master Doc file ID returns True from `should_tab_export`
       - Test: a normal file ID returns False from `should_tab_export`
       - Test: `should_aggregate` and `should_tab_export` never return True for the same file ID
-
----
-
-### Feature 8: Aggregate Router
-**Owner:** Dev Agent
-**File:** `src/ingestion/aggregate_router.py`
-
-**Why this is a separate feature:** The routing decision — normal pipeline vs summarizer — is
-the exact place a silent failure can cause PII to leak into Atlas with no error thrown.
-A dedicated, independently testable module makes this decision explicit and verifiable.
-
-#### Stories
-- As the pipeline I want to know whether a file should be summarized or chunked
-  so that sensitive attendee data is never stored as raw rows in Atlas
-
-#### Tasks
-- [ ] Define `AGGREGATE_FILE_IDS` as a set of file ID strings — copy the exact list from
-      `docs/PII_RULES.md` lines 38-46 (9 file IDs)
-- [ ] Expose a single function: `def should_aggregate(file_id: str) -> bool`
-- [ ] Return `True` if the file_id is in `AGGREGATE_FILE_IDS`, `False` otherwise
-- [ ] Log a warning if an unknown file_id is passed (not in aggregate list and not in
-      DATA_MAP.md known IDs) so unexpected files are visible in logs
-- [ ] Write `tests/test_aggregate_router.py` with:
-      - Test: a known aggregate file ID returns True
-      - Test: a known normal file ID returns False
-      - Test: all 9 AGGREGATE_FILE_IDS from PII_RULES.md return True (regression guard)
-      - Test: an unknown file ID returns False and logs a warning
 
 ---
 

@@ -89,14 +89,14 @@ These are the most important for demo queries. Start here.
 
 ## Priority 5: Spring 2026 Events
 
-| File Title | File ID | Action | Event |
-|---|---|---|---|
-| Resume Workshop Event Master/Checklist | 1IEkw4lnb7hl3btJMlyD0RTFNHgDtdwP3oyrtNM9G0Uo | INGEST | resume_workshop |
-| Networking Workshop Event Master/Checklist | 1HmTJVzWhOYDGsVXYQtdxqWA15-n5MzT9rDL5CVosv2g | INGEST | networking_workshop |
-| Judge/Mentor Packet - Hacklanta Spring 26 | 1kGx2SPb-9JpsFAss3bWfGI4SSkyaXlLEK6Yz_kphWlg | INGEST | hacklanta |
-| FINANCE: 2026-2027 Bookkeeping | 1_T2VOddzhsabMDnnywRVmXXWNwo-Pe3geFiTVtJJ1Bg | INGEST | null |
-| HackJam Curriculum and Date Planning | 1nKFvUskZxk7EFEqUHM0jMoUA1vUpDQjslOMNyJwDNfo | INGEST | hackjam |
-| DSA Curriculum and TimeLine | 1UTow1GNbNbGWbkQ3a9GHZFxRJvlV4Y5Lr7Qx4IZHoyk | INGEST | dsa_workshop |
+| File Title | File ID | Action | Doc Type | Event |
+|---|---|---|---|---|
+| Resume Workshop Event Master/Checklist | 1IEkw4lnb7hl3btJMlyD0RTFNHgDtdwP3oyrtNM9G0Uo | INGEST | event_logistics | resume_workshop |
+| Networking Workshop Event Master/Checklist | 1HmTJVzWhOYDGsVXYQtdxqWA15-n5MzT9rDL5CVosv2g | INGEST | event_logistics | networking_workshop |
+| Judge/Mentor Packet - Hacklanta Spring 26 | 1kGx2SPb-9JpsFAss3bWfGI4SSkyaXlLEK6Yz_kphWlg | INGEST | event_logistics | hacklanta |
+| FINANCE: 2026-2027 Bookkeeping | 1_T2VOddzhsabMDnnywRVmXXWNwo-Pe3geFiTVtJJ1Bg | INGEST | financial | null |
+| HackJam Curriculum and Date Planning | 1nKFvUskZxk7EFEqUHM0jMoUA1vUpDQjslOMNyJwDNfo | INGEST | blueprint | hackjam |
+| DSA Curriculum and TimeLine | 1UTow1GNbNbGWbkQ3a9GHZFxRJvlV4Y5Lr7Qx4IZHoyk | INGEST | blueprint | dsa_workshop |
 
 ---
 

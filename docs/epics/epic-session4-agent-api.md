@@ -16,7 +16,8 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 **Read these before writing any code:**
 - `docs/ARCHITECTURE.md` — agent design and tool definitions
 - `docs/DEMO_SCRIPT.md` — the exact 3 queries and expected response shapes
-- `src/retrieval/retriever.py` — what the retrieval tool wraps
+- `src/retrieval/retriever.py` — read for context on the $vectorSearch pipeline and reranker
+  logic only. The agent does NOT import or call this file — retrieval goes through MCP.
 - `docs/JUDGING_ALIGNMENT.md` — what judges are looking for
 
 ---

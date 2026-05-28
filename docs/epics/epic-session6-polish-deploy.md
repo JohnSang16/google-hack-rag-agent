@@ -88,12 +88,14 @@ new features. Fix, tune, deploy, document.
 - [ ] Write `cloudbuild.yaml` or deployment instructions for Cloud Run
 - [ ] Document the manual env var steps the human must complete in Atlas and Cloud Run console
 - [ ] Verify POST /chat works at the deployed Cloud Run URL
+- [ ] Update CORS middleware in server.py to allow the deployed frontend URL
+      (replace localhost:5173 with the Vercel/Firebase production URL)
 - [ ] Update frontend API base URL to point to Cloud Run URL
 
 ---
 
 ### Feature 7: Frontend Deployment
-**Owner:** Dev Agent**
+**Owner:** Dev Agent
 
 #### Tasks
 - [ ] Build frontend: `npm run build`

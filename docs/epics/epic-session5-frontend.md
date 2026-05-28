@@ -78,20 +78,26 @@ PLAN mode shows a clickable link to the created Google Doc.
 
 ---
 
-### Feature 4: Mode Selector
+### Feature 4: Mode Legend
 **Owner:** Dev Agent
 **File:** `src/frontend/src/components/ModeSelector.tsx`
 
+**Note:** Mode is classified automatically by the agent — users do not pick it manually.
+The three mode labels are shown here as a legend so users understand what each badge means
+before they start chatting. No toggle, no override, no POST /chat field needed.
+
 #### Stories
-- As a user I want to filter or signal which mode I want
-  so that I can get the right type of response without rephrasing my question
+- As a new user I want to understand what RECALL, ANALYZE, and PLAN mean
+  so that I know what to expect from different types of questions
 
 #### Tasks
-- [ ] Three toggle buttons: RECALL, ANALYZE, PLAN
-- [ ] Default: no filter selected (agent classifies automatically)
-- [ ] When selected: pass mode hint as optional field in POST /chat request body
-- [ ] Active button is highlighted with the mode color
-- [ ] Include a small tooltip on each button explaining what it does
+- [ ] Render three static color-coded chips: RECALL (blue), ANALYZE (purple), PLAN (green)
+- [ ] Each chip has a one-line tooltip: what kind of question triggers this mode
+      RECALL: "What happened, what was decided"
+      ANALYZE: "Trends, comparisons, growth over time"
+      PLAN: "Draft a doc, plan an event — creates a Google Doc"
+- [ ] No toggle state, no click handler, no POST /chat field
+- [ ] Position above the chat input as a passive reference strip
 
 ---
 

@@ -38,9 +38,10 @@ These require browser access and sensitive credentials. Flag these to the human 
   so that re-running ingestion does not create duplicate chunks
 
 #### Tasks
-- [ ] Read `src/ingestion/storer.py` and verify schema matches:
-      `{ file_id, chunk_index, text, embedding: [768 floats], metadata: { doc_type, event_name, date } }`
-- [ ] If schema is missing any field add it with a sensible default
+- [ ] Read `src/ingestion/storer.py` and verify schema matches the canonical schema in CLAUDE.md:
+      `{ text, embedding: [768 floats], metadata: { source_type, doc_type, semester, event_name,
+      date, team, file_id, file_title, chunk_index } }`
+- [ ] If any metadata field is missing add it with a sensible default (None for optional fields)
 - [ ] Confirm upsert key is `file_id` + `chunk_index` combined
 
 ---
@@ -89,10 +90,16 @@ These require browser access and sensitive credentials. Flag these to the human 
 
 #### Tasks
 - [ ] Check if `.env.example` exists
-- [ ] If not, create it with these keys and placeholder values:
-      `MONGODB_URI=your_atlas_connection_string_here`
-      `GOOGLE_DRIVE_CREDENTIALS=path_to_your_service_account_json`
+- [ ] If not, create it with all keys from CLAUDE.md env vars section:
       `GEMINI_API_KEY=your_gemini_api_key_here`
+      `MONGODB_URI=your_atlas_connection_string_here`
+      `MONGODB_DB_NAME=progsu_intelligence`
+      `MONGODB_COLLECTION=chunks`
+      `GOOGLE_DRIVE_CREDENTIALS=path_to_your_service_account_json`
+      `GCP_PROJECT_ID=your_gcp_project_id`
+      `GCP_REGION=us-central1`
+      `AGENT_ENGINE_ENDPOINT=your_vertex_agent_engine_endpoint`
+      `NOISE_FILTER_THRESHOLD=0.5`
 - [ ] Verify `.env` is in `.gitignore` — add it if missing
 - [ ] Verify `.env.example` is NOT in `.gitignore`
 

@@ -49,7 +49,7 @@ User query
   → MongoDB Atlas vector search (top-k=10)
   → reranker (Gemini scores relevance, keeps top-3)
   → Gemini agent reasons over chunks
-  → response with citations [source_title, date, file_id]
+  → response with citations [source_name, date, drive_link]
   → if PLAN mode: also calls create_google_doc() tool
 ```
 
@@ -88,7 +88,7 @@ These are what separate this from a generic RAG demo. Every one must be implemen
 2. **PII stripping**: Before chunking, run regex + Gemini pass to remove emails, phone numbers, non-exec names. Rules in docs/PII_RULES.md.
 3. **Metadata pre-filter**: Use MongoDB pre-filter on vector index before ANN search. Faster and more precise.
 4. **Reranker**: After vector search returns top-10, score each against the query with a second Gemini call. Return top-3 to the agent.
-5. **Citation UI**: Every answer displays source_title + date + a link icon. No answer without attribution.
+5. **Citation UI**: Every answer displays source_name + date + a Drive link. No answer without attribution.
 6. **Google Doc creation**: PLAN mode must create a real Google Doc via Drive API.
 
 ---
@@ -114,6 +114,8 @@ MONGODB_COLLECTION=chunks
 GOOGLE_DRIVE_CREDENTIALS= # path to service account JSON
 GCP_PROJECT_ID=
 GCP_REGION=us-central1
+AGENT_ENGINE_ENDPOINT=   # Vertex AI Agent Engine deployed endpoint URL
+NOISE_FILTER_THRESHOLD=0.5  # default 0.5; raise to tighten, lower to loosen
 ```
 
 ---
@@ -123,12 +125,14 @@ GCP_REGION=us-central1
 ```
 src/
   ingestion/
-    drive_reader.py      # reads Drive files by ID, exports to text
+    drive_reader.py      # reads Drive files by ID, exports to text; export_tabs() for multi-tab docs
     chunker.py           # splits text by doc_type rules above
     pii_filter.py        # strips PII before chunking
     noise_filter.py      # Gemini YES/NO scoring per chunk
     embedder.py          # calls text-embedding-004
+    summarizer.py        # Gemini summarizer for aggregate/spreadsheet files
     storer.py            # upserts chunks to MongoDB
+    aggregate_router.py  # routes file IDs to normal, aggregate, or tab-export path
     run_ingestion.py     # orchestrates the full pipeline
   retrieval/
     vector_search.py     # MongoDB Atlas $vectorSearch with pre-filter
@@ -138,7 +142,7 @@ src/
     mode_classifier.py   # classifies query as RECALL/ANALYZE/PLAN
     agent.py             # Gemini agent via Agent Builder
     tools/
-      retrieve.py        # tool: query the retrieval layer
+      retrieve.py        # tool: query Atlas via MongoDB MCP server (not retriever.py)
       create_doc.py      # tool: create Google Doc in Drive
   api/
     server.py            # FastAPI server, exposes /chat endpoint
@@ -147,7 +151,7 @@ src/
       App.tsx
       components/
         ChatInterface.tsx
-        ModeSelector.tsx
+        ModeSelector.tsx  (static mode legend — no toggle, classifier decides mode)
         CitationCard.tsx
         MessageBubble.tsx
 ```
