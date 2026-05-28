@@ -187,3 +187,45 @@ See docs/DEMO_SCRIPT.md for full detail. The three queries that will be run live
 3. "Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta." ← triggers PLAN mode, creates Google Doc
 
 Every retrieval component must return good results for these three queries. Tune metadata, chunking, and reranker with these in mind.
+
+---
+
+## Multi-Agent Orchestration Instructions
+
+### How To Run A Session
+When told to "start session N" or "run epic session N":
+1. Read this file fully first
+2. Read the full epic at docs/epics/epic-session[N]-*.md
+3. Check the prerequisite handoff conditions from the previous epic
+4. Flag any manual steps to the human before starting
+5. Spawn subagents per feature using the relevant bmad skill per agent type
+6. Run QA review using bmad-code-review at the end
+7. Update TODO.md when the epic definition of done is met
+8. Report back only when complete or a blocker needs human input
+
+### Agent Role To BMAD Skill Mapping
+- Dev Agent        -> .claude/skills/bmad-agent-dev
+- QA Agent         -> .claude/skills/bmad-code-review
+- Architect        -> .claude/skills/bmad-agent-architect
+- Analyst          -> .claude/skills/bmad-agent-analyst
+
+### Sensitive Operations — Always Flag To Human
+Never do these autonomously:
+- Create or modify Atlas clusters, databases, or indexes
+- Commit or push to main branch
+- Make the GitHub repo public
+- Deploy to Cloud Run or any production environment
+- Submit the Devpost entry
+
+### Credentials Rule
+Never read, write, print, or handle the contents of .env
+All code reads credentials from environment variables only
+Mock all credentials in tests
+
+### Epic Files Location
+docs/epics/epic-session1-atlas-setup.md
+docs/epics/epic-session2-ingestion.md
+docs/epics/epic-session3-retrieval.md
+docs/epics/epic-session4-agent-api.md
+docs/epics/epic-session5-frontend.md
+docs/epics/epic-session6-polish-deploy.md
