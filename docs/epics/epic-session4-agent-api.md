@@ -134,6 +134,44 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 
 ---
 
+### Feature 7: Vertex AI Agent Engine Deployment
+**Owner:** Dev Agent
+**No new file — deployment and configuration task**
+
+**Why this must happen in Session 4, not Session 6:** Judges verify the agent is hosted on
+Vertex AI Agent Engine, not running locally. Deploying here — while the agent is being built —
+catches auth, tool registration, and API permission issues while there is still time to fix them.
+Leaving this to Session 6 risks a last-day blocker with no recovery time before June 11.
+
+#### Stories
+- As a hackathon judge I want the agent deployed on Google Cloud Agent Builder
+  so that the project qualifies for the "Google Cloud" technology criterion
+
+#### Tasks
+- [ ] Enable the Vertex AI Agent Engine API in GCP project (flag to human — requires console access)
+- [ ] Ensure `GCP_PROJECT_ID` and `GCP_REGION` env vars are set (already in CLAUDE.md)
+- [ ] Package agent.py for deployment: confirm all tool definitions and system prompt are
+      expressed as Agent Builder-compatible tool schemas (not raw Python callables)
+- [ ] Deploy agent to Vertex AI Agent Engine using the `google-cloud-aiplatform` SDK:
+      ```python
+      from google.cloud import aiplatform
+      aiplatform.init(project=GCP_PROJECT_ID, location=GCP_REGION)
+      # register and deploy agent with tools
+      ```
+- [ ] Verify the deployed agent endpoint responds to a test query via the Agent Engine API
+- [ ] Update agent.py to call the deployed Agent Engine endpoint when
+      `AGENT_ENGINE_ENDPOINT` env var is set, falling back to local Gemini SDK when not set
+- [ ] Add `AGENT_ENGINE_ENDPOINT` to `.env.example`
+- [ ] Run Query 1 against the deployed Agent Engine endpoint — confirm same response
+      as local
+
+#### Manual Steps (Flag To Human Before Starting)
+- Enable Vertex AI Agent Engine API at console.cloud.google.com
+- Grant the service account the `roles/aiplatform.user` IAM role
+- Confirm GCP billing is active on the project
+
+---
+
 ## QA Checklist (QA Agent)
 - [ ] POST /chat returns correct shape for all 3 demo queries
 - [ ] PLAN mode response includes a real created_doc_url pointing to a live Google Doc
@@ -141,6 +179,8 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 - [ ] Agent never answers without retrieving — verify by checking citations are always present
 - [ ] Server returns 500 with useful error message if Atlas is unreachable
 - [ ] Mode classifier correctly classifies all 3 demo queries
+- [ ] Agent Engine endpoint responds to Query 1 with correct citations
+- [ ] `AGENT_ENGINE_ENDPOINT` env var switches agent.py between local and deployed mode
 
 ---
 
@@ -148,6 +188,7 @@ This is intentional — it demonstrates MCP tool use for the hackathon judges.
 POST /chat returns a grounded answer with citations for Query 1.
 PLAN mode creates a real Google Doc and returns the link.
 All 3 demo queries produce correct responses end to end.
+Agent is deployed on Vertex AI Agent Engine and responding via the hosted endpoint.
 
 ---
 
@@ -157,3 +198,5 @@ Confirm before Session 5 starts:
 - All 3 demo queries work via curl or Postman
 - PLAN mode creates a real Google Doc every time
 - Response shape matches what CitationCard.tsx will expect
+- Agent Engine endpoint URL is in .env as AGENT_ENGINE_ENDPOINT
+- Query 1 returns correct response from the deployed endpoint

@@ -151,12 +151,42 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 
 #### Tasks
 - [ ] Accept a list of file IDs as input (from command line or config file)
-- [ ] Run each file through: drive_reader -> pii_filter -> chunker (or summarizer for sheets)
-      -> noise_filter -> embedder -> storer
-- [ ] Log per file: file name, chunks produced, chunks passing noise filter, errors
+- [ ] For each file: call the Aggregate Router (Feature 8) to decide which path to take
+- [ ] Normal path: drive_reader -> pii_filter -> chunker -> noise_filter -> embedder -> storer
+- [ ] Aggregate path: drive_reader -> summarizer -> embedder -> storer (skip chunker and noise filter —
+      the summary is already clean and signal-only)
+- [ ] Log per file: file name, path taken (normal/aggregate), chunks produced, errors
 - [ ] If any single file fails, log the error and continue to the next file
 - [ ] At the end print a summary: total files, total chunks stored, total errors
 - [ ] Write `tests/test_run_ingestion.py` using mocked versions of all sub-modules
+      including a test that verifies aggregate files take the aggregate path
+
+---
+
+### Feature 8: Aggregate Router
+**Owner:** Dev Agent
+**File:** `src/ingestion/aggregate_router.py`
+
+**Why this is a separate feature:** The routing decision — normal pipeline vs summarizer — is
+the exact place a silent failure can cause PII to leak into Atlas with no error thrown.
+A dedicated, independently testable module makes this decision explicit and verifiable.
+
+#### Stories
+- As the pipeline I want to know whether a file should be summarized or chunked
+  so that sensitive attendee data is never stored as raw rows in Atlas
+
+#### Tasks
+- [ ] Define `AGGREGATE_FILE_IDS` as a set of file ID strings — copy the exact list from
+      `docs/PII_RULES.md` lines 38-46 (9 file IDs)
+- [ ] Expose a single function: `def should_aggregate(file_id: str) -> bool`
+- [ ] Return `True` if the file_id is in `AGGREGATE_FILE_IDS`, `False` otherwise
+- [ ] Log a warning if an unknown file_id is passed (not in aggregate list and not in
+      DATA_MAP.md known IDs) so unexpected files are visible in logs
+- [ ] Write `tests/test_aggregate_router.py` with:
+      - Test: a known aggregate file ID returns True
+      - Test: a known normal file ID returns False
+      - Test: all 9 AGGREGATE_FILE_IDS from PII_RULES.md return True (regression guard)
+      - Test: an unknown file ID returns False and logs a warning
 
 ---
 
@@ -168,6 +198,8 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Chunk count logged matches chunks visible in Atlas after a real run
 - [ ] noise filter pass rate is logged and above 40% (if below, prompt needs tuning)
 - [ ] PII strip log shows at least one strip on any file containing member data
+- [ ] All 9 aggregate file IDs route to summarizer path — verified by test_aggregate_router.py
+- [ ] No chunk stored in Atlas contains a raw email address or phone number
 
 ---
 
