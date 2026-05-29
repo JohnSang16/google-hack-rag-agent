@@ -73,7 +73,8 @@ Every ingested chunk MUST have this exact structure:
     "team": "exec" | "growth" | "tech" | "operations" | "outreach" | None,
     "file_id": str,               # Google Drive file ID
     "file_title": str,            # human-readable doc name
-    "chunk_index": int            # position within source doc
+    "chunk_index": int,           # position within source doc
+    "source_heading": str | None  # section heading the chunk came from (set by chunker)
   }
 }
 ```
@@ -112,6 +113,8 @@ MONGODB_URI=             # Atlas connection string mongodb+srv://...
 MONGODB_DB_NAME=progsu_intelligence
 MONGODB_COLLECTION=chunks
 GOOGLE_DRIVE_CREDENTIALS= # path to service account JSON
+DRIVE_INGESTION_FOLDER_ID=  # Drive folder to read source docs from
+DRIVE_OUTPUT_FOLDER_ID=     # Drive folder where PLAN mode drops generated docs
 GCP_PROJECT_ID=
 GCP_REGION=us-central1
 AGENT_ENGINE_ENDPOINT=   # Vertex AI Agent Engine deployed endpoint URL

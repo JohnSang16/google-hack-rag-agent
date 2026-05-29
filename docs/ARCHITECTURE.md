@@ -61,7 +61,8 @@ Google Drive (docs, sheets, forms)
     { "type": "filter", "path": "metadata.event_name" },
     { "type": "filter", "path": "metadata.doc_type" },
     { "type": "filter", "path": "metadata.team" },
-    { "type": "filter", "path": "metadata.source_type" }
+    { "type": "filter", "path": "metadata.source_type" },
+    { "type": "filter", "path": "metadata.date" }
   ]
 }
 ```
@@ -156,8 +157,8 @@ Respond with exactly one word: RECALL, ANALYZE, or PLAN
 When PLAN mode is triggered, call the Drive API to create a document:
 
 ```python
-# Target folder for created docs
-PLAN_OUTPUT_FOLDER_ID = "11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-"  # progsu Drive root
+# Target folder for created docs - set DRIVE_OUTPUT_FOLDER_ID in .env
+PLAN_OUTPUT_FOLDER_ID = os.environ["DRIVE_OUTPUT_FOLDER_ID"]  # e.g. "11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-"
 
 # Doc title format
 title = f"[AI Generated] {query[:60]}  -  {datetime.now().strftime('%Y-%m-%d')}"
@@ -177,11 +178,13 @@ The created doc should include:
 POST /chat
 {
   "query": str,
-  "filters": {           # optional
+  "filters": {           # optional - all fields optional
     "semester": str,
     "event_name": str,
     "team": str,
-    "doc_type": str
+    "doc_type": str,
+    "date_from": str,    # YYYY-MM-DD inclusive lower bound
+    "date_to": str       # YYYY-MM-DD inclusive upper bound
   }
 }
 
@@ -207,7 +210,8 @@ Response:
 
 Run in this order. Each step depends on the previous:
 
-1. `python src/ingestion/run_ingestion.py --source drive --file-ids-file docs/DATA_MAP.md`
+1. `python src/ingestion/run_ingestion.py --file-ids-file config/file_ids.txt`
+   (extract Priority 1-5 file IDs from DATA_MAP.md into a plain text file - one ID per line)
 2. Verify chunk count in Atlas: should be 800-2000 chunks total
 3. Spot check: manually query 3 chunks, confirm metadata is correct
 4. Run Atlas vector search quickstart query to confirm index is working

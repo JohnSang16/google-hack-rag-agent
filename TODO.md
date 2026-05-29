@@ -26,15 +26,17 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 ## Session 2  -  Google Drive Ingestion Pipeline
 **Goal:** Real Drive docs ingested, chunked, filtered, embedded, stored in Atlas.
 
-- [ ] Write `src/ingestion/drive_reader.py`  -  authenticate with Drive API, export doc to text by file ID
+- [ ] Write `src/ingestion/drive_reader.py`  -  authenticate with Drive API, export doc to text by file ID; include `export_tabs()` for multi-tab docs
 - [ ] Write `src/ingestion/pii_filter.py`  -  regex strip + Gemini strip for emails/phones
-- [ ] Write `src/ingestion/chunker.py`  -  split by doc_type rules from CLAUDE.md
+- [ ] Write `src/ingestion/chunker.py`  -  split by doc_type rules from CLAUDE.md (including large doc >1MB and small doc <50KB paths)
 - [ ] Write `src/ingestion/noise_filter.py`  -  Gemini YES/NO scoring per chunk
 - [ ] Write `src/ingestion/embedder.py`  -  call text-embedding-004, return 768-dim vector
+- [ ] Write `src/ingestion/summarizer.py`  -  Gemini summarizer for aggregate/spreadsheet files
+- [ ] Write `src/ingestion/aggregate_router.py`  -  routes each file ID to normal, aggregate, or tab-export path
 - [ ] Write `src/ingestion/run_ingestion.py`  -  orchestrate full pipeline for a list of file IDs
+- [ ] Write `src/ingestion/discord_reader.py`  -  read Discord export text dump, split into chunks by channel/date, run through normal noise_filter pipeline
 - [ ] Run on Priority 1 files from docs/DATA_MAP.md
 - [ ] Log: chunk count, noise filter pass rate, any errors
-- [ ] Aggregate files: implement summarizer for spreadsheet files (see docs/PII_RULES.md)
 
 **Done when:** Hacklanta Master Doc and at least 5 other files are chunked and stored in Atlas.
 
@@ -43,7 +45,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 ## Session 3  -  Retrieval Layer
 **Goal:** Query returns relevant, reranked chunks for all 3 demo queries.
 
-- [ ] Write `src/retrieval/vector_search.py`  -  full $vectorSearch with metadata pre-filter
+- [ ] Update `src/retrieval/vector_search.py`  -  add date_from/date_to range filter support
 - [ ] Write `src/retrieval/reranker.py`  -  Gemini scoring, return top-3
 - [ ] Write `src/retrieval/retriever.py`  -  combine search + rerank into one call
 - [ ] Test all 3 demo queries from docs/DEMO_SCRIPT.md manually
@@ -58,15 +60,17 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 **Goal:** Agent answers questions with citations. MongoDB MCP is the tool it uses.
 
 - [ ] Write `src/agent/mode_classifier.py`  -  classifies query to RECALL/ANALYZE/PLAN
-- [ ] Write `src/agent/tools/retrieve.py`  -  the tool the agent calls (wraps retriever.py)
+- [ ] Write `src/agent/tools/retrieve.py`  -  the tool the agent calls via MongoDB MCP (does NOT import retriever.py)
 - [ ] Write `src/agent/tools/create_doc.py`  -  creates Google Doc via Drive API
 - [ ] Write `src/agent/agent.py`  -  Gemini agent via Agent Builder with tools registered
 - [ ] Configure MongoDB MCP server connection to Atlas
 - [ ] Wire agent to call retrieval through MCP (not direct Python call)
 - [ ] Write `src/api/server.py`  -  FastAPI POST /chat endpoint
 - [ ] Test end-to-end: query → agent → MCP → Atlas → rerank → response with citations
+- [ ] Deploy agent to Vertex AI Agent Engine (FLAG TO HUMAN FIRST: requires enabling API + IAM in GCP console)
+- [ ] Add deployed endpoint URL to `AGENT_ENGINE_ENDPOINT` in `.env`
 
-**Done when:** POST /chat returns answer + citations for Query 1. PLAN mode creates a Google Doc.
+**Done when:** POST /chat returns answer + citations for Query 1. PLAN mode creates a Google Doc. Agent Engine endpoint is live.
 
 ---
 

@@ -108,7 +108,7 @@ The three demo queries are:
 - [ ] Query 1 results include at least one chunk with event_name="hacklanta"
 - [ ] Query 2 results include at least one chunk from an attendance spreadsheet summary
 - [ ] Query 3 results include at least one chunk from a planning or retrospective document
-- [ ] No chunk returned has a rerank score below 6 (on the 1 - 10 scale) for its matched query
+- [ ] No chunk returned has a rerank score below 6, except in the fallback case where fewer than 2 chunks scored >= 6 (fallback returns the top 2 regardless of score)
 - [ ] retriever.py returns in under 3 seconds for all 3 demo queries
 
 ---

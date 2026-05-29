@@ -9,8 +9,11 @@ from pymongo.collection import Collection
 
 logger = logging.getLogger(__name__)
 
-# Fields supported by the Atlas vector index filter definition
-FILTERABLE_FIELDS = {"semester", "event_name", "doc_type", "team", "source_type"}
+# Exact-match fields supported by the Atlas vector index filter definition
+FILTERABLE_FIELDS = {"semester", "event_name", "doc_type", "team", "source_type", "date"}
+
+# date_from / date_to are range keys that map to $gte / $lte on metadata.date
+DATE_RANGE_KEYS = {"date_from", "date_to"}
 
 
 def get_collection() -> Collection:
@@ -22,17 +25,31 @@ def get_collection() -> Collection:
 
 
 def _build_pre_filter(filters: dict[str, str] | None) -> dict | None:
-    """Convert caller-supplied {field: value} into an Atlas MQL pre-filter."""
+    """Convert caller-supplied {field: value} into an Atlas MQL pre-filter.
+
+    Supports exact-match fields from FILTERABLE_FIELDS and date range via
+    date_from (YYYY-MM-DD, inclusive lower bound) and date_to (inclusive upper bound).
+    """
     if not filters:
         return None
 
     clauses = []
+    date_range: dict = {}
+
     for field, value in filters.items():
-        if field not in FILTERABLE_FIELDS:
-            logger.warning("Ignoring unknown filter field: %s", field)
+        if not value:
             continue
-        if value:
+        if field == "date_from":
+            date_range["$gte"] = value
+        elif field == "date_to":
+            date_range["$lte"] = value
+        elif field not in FILTERABLE_FIELDS:
+            logger.warning("Ignoring unknown filter field: %s", field)
+        else:
             clauses.append({f"metadata.{field}": {"$eq": value}})
+
+    if date_range:
+        clauses.append({"metadata.date": date_range})
 
     if not clauses:
         return None

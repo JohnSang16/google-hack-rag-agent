@@ -95,8 +95,11 @@ Do NOT hardcode any API keys. All credentials come from environment variables in
 - [ ] Small docs (<50KB): store as single chunk or split by paragraph  -  do not force heading splits
 - [ ] Enforce 800 token max per chunk  -  split further if needed
 - [ ] Add 100 token overlap between adjacent chunks to preserve context at boundaries
+- [ ] Large docs (>1MB): apply heading split first, then enforce 800 token max with 100 token overlap
+- [ ] Small docs (<50KB): store as single chunk or split by paragraph - do not force heading splits
 - [ ] Each chunk gets metadata: `{ file_id, chunk_index, doc_type, source_heading, token_count }`
-- [ ] Write `tests/test_chunker.py` covering: normal split, oversized chunk, overlap, each doc_type
+      Note: `token_count` is used internally for splitting logic; `source_heading` is persisted to MongoDB.
+- [ ] Write `tests/test_chunker.py` covering: normal split, oversized chunk, overlap, each doc_type, large doc path
 
 ---
 
@@ -236,6 +239,31 @@ The Claude Workshop tab and Hacklanta tab inside this doc are required for demo 
 
 ---
 
+### Feature 10: Discord Reader
+**Owner:** Dev Agent
+**File:** `src/ingestion/discord_reader.py`
+
+**Why Discord matters for judging:** The noise filter applied to Discord data is the key differentiator
+called out in `docs/JUDGING_ALIGNMENT.md`. Discord exports contain memes, reactions, and filler -
+the noise filter is specifically designed to handle this. Without Discord data, this differentiator
+cannot be demonstrated. The raw Discord export is in `discord_export/` (gitignored for privacy -
+the human must supply it).
+
+#### Stories
+- As the pipeline I want to read a Discord export text file and produce chunks
+  so that org decisions buried in Discord threads are queryable alongside Drive docs
+
+#### Tasks
+- [ ] Accept a path to a Discord export file (plaintext or JSON export from a tool like DiscordChatExporter)
+- [ ] Split messages by channel and date into meaningful blocks (group consecutive messages within a 24h window)
+- [ ] Assign `doc_type: "wiki"`, `source_type: "discord"`, `date` from message timestamp
+- [ ] Pass each block through the standard pipeline: pii_filter -> chunker -> noise_filter -> embedder -> storer
+      (the noise filter is especially important here - Discord is the noisiest source)
+- [ ] Log how many Discord blocks were kept vs dropped by noise filter
+- [ ] Write `tests/test_discord_reader.py` with a sample mock export (no real export data in tests)
+
+---
+
 ## QA Checklist (QA Agent)
 - [ ] Each module has its own test file with at least 3 meaningful test cases
 - [ ] No API keys or credentials appear in any source or test file
@@ -248,6 +276,8 @@ The Claude Workshop tab and Hacklanta tab inside this doc are required for demo 
 - [ ] Progsu Master Doc file ID routes to tab-export path  -  verified by test_aggregate_router.py
 - [ ] Atlas contains chunks with tab names (e.g. "Events + Finished Events") as source_heading
 - [ ] No chunk stored in Atlas contains a raw email address or phone number
+- [ ] At least one Discord chunk is stored in Atlas with `source_type: "discord"` (requires human to supply discord_export/ file)
+- [ ] Discord noise filter drop rate is logged - expected 40-70% of Discord blocks are noise
 
 ---
 

@@ -45,6 +45,7 @@ DUMMY_CHUNKS = [
             "file_id": "dummy_file_001",
             "file_title": "Fall 2025 Exec Meeting Notes",
             "chunk_index": 0,
+            "source_heading": None,
         },
     },
     {
@@ -60,6 +61,7 @@ DUMMY_CHUNKS = [
             "file_id": "dummy_file_002",
             "file_title": "Spring 2026 Budget",
             "chunk_index": 0,
+            "source_heading": None,
         },
     },
     {
@@ -75,6 +77,7 @@ DUMMY_CHUNKS = [
             "file_id": "dummy_file_003",
             "file_title": "Growth Brainstorm Oct 2025",
             "chunk_index": 0,
+            "source_heading": None,
         },
     },
     {
@@ -90,6 +93,7 @@ DUMMY_CHUNKS = [
             "file_id": "dummy_file_004",
             "file_title": "Discord Setup Guide",
             "chunk_index": 0,
+            "source_heading": None,
         },
     },
     {
@@ -98,7 +102,7 @@ DUMMY_CHUNKS = [
             "Sponsors included TechCorp and CloudCo. Main logistics challenge was catering "
             "running out early  -  resolved by ordering 30% more next time."
         ),
-        "embedding": random_embedding(42),  # distinct seed → distinct vector
+        "embedding": random_embedding(42),  # distinct seed -> distinct vector
         "metadata": {
             "source_type": "google_drive",
             "doc_type": "event_logistics",
@@ -109,6 +113,7 @@ DUMMY_CHUNKS = [
             "file_id": "dummy_file_005",
             "file_title": "Hacklanta Master Logistics",
             "chunk_index": 0,
+            "source_heading": "Logistics Overview",
         },
     },
 ]

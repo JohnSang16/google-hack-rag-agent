@@ -73,7 +73,7 @@ Every build decision maps back to these four criteria. When in doubt about what 
 - This is a template, not a one-off
 
 **Quantified impact in your case:**
-- progsu: $15k+ in sponsors secured, $5k in prizes distributed, 400+ attendees, Claude Code workshop with 200+ attendees
+- progsu: $20k in sponsors secured, $5k in prizes distributed, 400+ attendees, Claude Code workshop with 200+ attendees
 - Without this agent: the playbook for running a $15k hackathon lives in John's head and scattered docs
 - With this agent: the next Technical Director has instant access to every decision, every vendor negotiation, every lesson learned
 
@@ -100,8 +100,8 @@ Most RAG demos:
 3. Get an answer
 
 This agent:
-1. Ingests multiple heterogeneous data sources (structured Drive docs + messy Discord)
-2. Applies a noise filter to clean Discord data before storage
+1. Ingests multiple heterogeneous data sources (structured Drive docs + Discord export)
+2. Applies a noise filter to every chunk before storage - critical for messy Discord data
 3. Uses metadata-aware retrieval to find temporally and categorically relevant chunks
 4. Reranks results for actual query relevance
 5. Classifies query intent and adapts behavior (not just retrieval)
@@ -111,7 +111,7 @@ This agent:
 "Org OS"  -  the idea that every org's accumulated knowledge becomes an intelligence layer that survives leadership turnover. This is a memorable concept with a clear problem statement.
 
 **The differentiator judges will remember:**
-The noise filter on Discord data. Handling messy conversational data well is hard. Most teams don't try. This team built a Gemini-powered filter that scores every Discord message before storage. Judges from MongoDB and Google understand why that's technically meaningful.
+The noise filter on ingested data, especially Discord. Handling messy conversational data well is hard. Most teams don't try. This team built a Gemini-powered filter that scores every chunk before storage - keeping only organizationally meaningful content. Judges from MongoDB and Google understand why that's technically meaningful.
 
 ### One-Paragraph Pitch for Devpost
 

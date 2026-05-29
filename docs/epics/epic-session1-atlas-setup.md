@@ -40,7 +40,7 @@ These require browser access and sensitive credentials. Flag these to the human 
 #### Tasks
 - [ ] Read `src/ingestion/storer.py` and verify schema matches the canonical schema in CLAUDE.md:
       `{ text, embedding: [768 floats], metadata: { source_type, doc_type, semester, event_name,
-      date, team, file_id, file_title, chunk_index } }`
+      date, team, file_id, file_title, chunk_index, source_heading } }`
 - [ ] If any metadata field is missing add it with a sensible default (None for optional fields)
 - [ ] Confirm upsert key is `file_id` + `chunk_index` combined
 

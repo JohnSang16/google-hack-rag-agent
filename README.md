@@ -44,10 +44,9 @@ cp .env.example .env
 
 **Backend:**
 ```bash
-cd src
 pip install -r requirements.txt
-python ingestion/run_ingestion.py
-python api/server.py
+python src/ingestion/run_ingestion.py
+python src/api/server.py
 ```
 
 **Frontend:**

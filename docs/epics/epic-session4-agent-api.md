@@ -121,7 +121,7 @@ production  -  no divergence between dev and demo day.
       In ANALYZE mode: structure response with clear trends and data points
       In RECALL mode: answer directly and concisely with citations
 - [ ] Agent response shape:
-      `{ mode, answer, citations: [{ source_name, date, drive_link? }], created_doc_url? }`
+      `{ mode, answer, citations: [{ source_name, date, drive_link?, rerank_score }], created_doc_url? }`
 - [ ] Write `tests/test_agent.py` with mocked tools for all 3 modes
 
 ---
