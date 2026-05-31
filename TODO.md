@@ -4,22 +4,22 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: NOT STARTED
+## Current Status: SESSION 1 COMPLETE — starting Session 2
 
 ---
 
-## Session 1 — MongoDB Atlas Setup (DO THIS FIRST)
+## Session 1 — MongoDB Atlas Setup ✓ DONE (2026-05-30)
 **Goal:** Full vector search loop working on dummy data in under 1 hour.
 
-- [ ] Create MongoDB Atlas free cluster (cloud.mongodb.com)
-- [ ] Create database: `progsu_intelligence`, collection: `chunks`
-- [ ] Create Atlas Vector Search index using definition in docs/ARCHITECTURE.md
-- [ ] Write `src/ingestion/storer.py` — function to insert a chunk with embedding
-- [ ] Write `src/retrieval/vector_search.py` — function to query with $vectorSearch
-- [ ] Test: insert 5 dummy chunks with fake embeddings, query returns correct ones
-- [ ] Verify metadata pre-filter works (filter by event_name="hacklanta")
+- [x] Create MongoDB Atlas free cluster (cloud.mongodb.com)
+- [x] Create database: `progsu_intelligence`, collection: `chunks`
+- [x] Create Atlas Vector Search index using definition in docs/ARCHITECTURE.md
+- [x] Write `src/ingestion/storer.py` — function to insert a chunk with embedding
+- [x] Write `src/retrieval/vector_search.py` — function to query with $vectorSearch
+- [x] Test: insert 5 dummy chunks with fake embeddings, query returns correct ones
+- [x] Verify metadata pre-filter works (filter by event_name="hacklanta")
 
-**Done when:** `vector_search.py` returns the right dummy chunk for a test query.
+**Result:** 5/5 tests passed. `$vectorSearch` with pre-filter confirmed working on M0 free tier.
 
 ---
 
