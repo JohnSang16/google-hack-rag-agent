@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 1 COMPLETE — starting Session 2
+## Current Status: SESSION 2 COMPLETE — starting Session 3
 
 ---
 
@@ -23,20 +23,30 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Session 2 — Google Drive Ingestion Pipeline
+## Session 2 — Google Drive Ingestion Pipeline ✓ DONE (2026-06-04)
 **Goal:** Real Drive docs ingested, chunked, filtered, embedded, stored in Atlas.
 
-- [ ] Write `src/ingestion/drive_reader.py` — authenticate with Drive API, export doc to text by file ID
-- [ ] Write `src/ingestion/pii_filter.py` — regex strip + Gemini strip for emails/phones
-- [ ] Write `src/ingestion/chunker.py` — split by doc_type rules from CLAUDE.md
-- [ ] Write `src/ingestion/noise_filter.py` — Gemini YES/NO scoring per chunk
-- [ ] Write `src/ingestion/embedder.py` — call text-embedding-004, return 768-dim vector
-- [ ] Write `src/ingestion/run_ingestion.py` — orchestrate full pipeline for a list of file IDs
-- [ ] Run on Priority 1 files from docs/DATA_MAP.md
+- [x] Write `src/ingestion/drive_reader.py` — authenticate with Drive API, export doc to text by file ID
+- [x] Write `src/ingestion/pii_filter.py` — regex strip + Gemini strip for emails/phones/names
+- [x] Write `src/ingestion/chunker.py` — split by doc_type rules from CLAUDE.md
+- [x] Write `src/ingestion/noise_filter.py` — Gemini YES/NO scoring per chunk
+- [x] Write `src/ingestion/embedder.py` — call text-embedding-004, return 768-dim vector
+- [x] Write `src/ingestion/run_ingestion.py` — orchestrate full pipeline for a list of file IDs
+- [ ] Run on Priority 1 files from docs/DATA_MAP.md ← **DO THIS NEXT**
 - [ ] Log: chunk count, noise filter pass rate, any errors
-- [ ] Aggregate files: implement summarizer for spreadsheet files (see docs/PII_RULES.md)
+- [ ] Aggregate files: summarizer implemented in run_ingestion.py (ready to run)
+
+**Run command:** `python -m src.ingestion.run_ingestion --priority 1`
+**Faster (skip per-chunk Gemini PII):** `python -m src.ingestion.run_ingestion --priority 1 --skip-gemini-pii`
 
 **Done when:** Hacklanta Master Doc and at least 5 other files are chunked and stored in Atlas.
+
+**Decisions:**
+- Used `google-genai` SDK (new, replaces deprecated `google-generativeai`)
+- Gemini PII pass is per-chunk, skipped for chunks > 8KB (regex-only for large docs)
+- `--skip-gemini-pii` flag available for faster runs (regex PII only)
+- AGGREGATE files go through Gemini summarizer, stored as 1 chunk each
+- All Priority 1-5 + aggregate file specs hardcoded in run_ingestion.py
 
 ---
 
