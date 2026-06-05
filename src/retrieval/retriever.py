@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -54,9 +55,9 @@ async def retrieve(
     if collection is None:
         collection = _get_collection()
 
-    # 1. Embed query
+    # 1. Embed query (sync SDK call — run in thread)
     try:
-        query_embedding = _embed_query(query, gemini_client)
+        query_embedding = await asyncio.to_thread(_embed_query, query, gemini_client)
     except Exception as e:
         raise RuntimeError(f"Query embedding failed: {e}") from e
 
@@ -72,8 +73,8 @@ async def retrieve(
         logger.warning("Vector search returned 0 results for query: %s", query[:80])
         return []
 
-    # 3. Rerank
-    results = rerank(query=query, chunks=candidates, client=gemini_client)
+    # 3. Rerank (sync, makes up to 10 sequential Gemini calls — run in thread)
+    results = await asyncio.to_thread(rerank, query, candidates, gemini_client)
 
     logger.info(
         "retrieve: query='%s...' filters=%s → %d candidates → %d final",

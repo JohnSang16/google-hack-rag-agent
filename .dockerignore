@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+tests/
+docs/
+_bmad/
+src/frontend/
+*.md
+conftest.py
+setup_drive_oauth.py
+drive_client_secrets.json
+service_account.json

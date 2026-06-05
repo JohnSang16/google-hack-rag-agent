@@ -38,6 +38,7 @@ def format_context_for_prompt(chunks: list[dict]) -> str:
         date = meta.get("date") or "n/a"
         score = chunk.get("relevance_score", "?")
         text = chunk.get("text", "").strip()
-        lines.append(f"[Source {i}: {title} | date: {date} | relevance: {score}/10]\n{text}")
+        file_id = meta.get("file_id", "")
+        lines.append(f"[Source {i}: {title} | file_id: {file_id} | date: {date} | relevance: {score}/10]\n{text}")
 
     return "\n\n---\n\n".join(lines)

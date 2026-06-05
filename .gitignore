@@ -9,6 +9,7 @@
 !package-lock.json
 !tsconfig.json
 !tsconfig.*.json
+!vercel.json
 service_account.json
 google_credentials.json
 credentials.json

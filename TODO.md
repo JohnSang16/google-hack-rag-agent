@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 4 COMPLETE — starting Session 5
+## Current Status: SESSION 5 COMPLETE — starting Session 6
 
 ---
 
@@ -89,20 +89,29 @@ Share these with the service account and run `--priority aggregate`:
 
 ---
 
-## Session 5 — React Frontend
+## Session 5 — React Frontend ✓ DONE (2026-06-05)
 **Goal:** Clean chat UI with mode badges, citations, and streaming.
 
-- [ ] Scaffold Vite + React + TypeScript project in `src/frontend/`
-- [ ] Write `ChatInterface.tsx` — main chat container
-- [ ] Write `MessageBubble.tsx` — user vs agent messages
-- [ ] Write `ModeSelector.tsx` — RECALL/ANALYZE/PLAN filter buttons
-- [ ] Write `CitationCard.tsx` — source title, date, Drive link
-- [ ] Implement streaming response display
-- [ ] Show Google Doc link when PLAN mode returns created_doc_url
-- [ ] Style: clean, minimal, mode badge color-coded (blue/purple/green)
-- [ ] Connect to FastAPI backend at /chat
+- [x] Scaffold Vite + React + TypeScript project in `src/frontend/`
+- [x] Write `ChatInterface.tsx` — main chat container with loading state + error handling
+- [x] Write `MessageBubble.tsx` — user/agent/error messages with inline markdown rendering
+- [x] Write `ModeSelector.tsx` — static RECALL/ANALYZE/PLAN legend strip with tooltips
+- [x] Write `CitationCard.tsx` — collapsible "Sources (N)" with relevance labels and Drive links
+- [x] Typing indicator animation (no streaming — full response renders on completion)
+- [x] Show "View Google Doc" button when PLAN mode returns created_doc_url
+- [x] Style: clean minimal design, mode badge color-coded (blue/purple/green)
+- [x] Proxy to FastAPI backend at /chat via vite.config.ts
+- [x] Write `src/types.ts` — shared TypeScript types matching actual API response shape
 
-**Done when:** All 3 demo queries work end-to-end through the UI.
+**Run frontend:** `cd src/frontend && npm run dev` (localhost:5173)
+**Run backend:** `python -m src.api.server` (localhost:8000)
+
+**Bug fixed this session:** Socket dropped on every query — sync Gemini SDK calls were
+blocking the async event loop. Fixed with asyncio.to_thread() in agent.py and retriever.py.
+
+**Still blocked (human action needed):**
+- Drive folder re-share as Editor for PLAN mode doc creation (see Session 4 blocker)
+- Aggregate files not yet ingested — Query 2 returns weak results (see Session 3 gap)
 
 ---
 

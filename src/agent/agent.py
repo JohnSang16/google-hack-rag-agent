@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import re
 import os
 from typing import Optional
 
@@ -67,35 +69,70 @@ def _get_client() -> genai.Client:
 
 def _parse_response(raw: str) -> tuple[str, list[dict]]:
     """Parse Gemini JSON response. Returns (answer, citations)."""
+    text = raw.strip()
+    # Strip markdown fences
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    text = text.strip()
+
+    # First try clean parse
     try:
-        # Strip accidental markdown fences
-        text = raw.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text.strip())
+        data = json.loads(text)
         return data.get("answer", raw), data.get("citations", [])
-    except (json.JSONDecodeError, KeyError) as e:
+    except json.JSONDecodeError:
+        pass
+
+    # Truncated JSON — extract "answer" value with regex and try to salvage citations
+    try:
+        answer_match = re.search(r'"answer"\s*:\s*"(.*?)(?:"\s*,\s*"citations"|"\s*})', text, re.DOTALL)
+        if answer_match:
+            answer = answer_match.group(1).encode().decode("unicode_escape", errors="ignore")
+        else:
+            # Last resort: everything after "answer": "
+            answer_match2 = re.search(r'"answer"\s*:\s*"(.+)', text, re.DOTALL)
+            answer = answer_match2.group(1).rstrip('"}').strip() if answer_match2 else raw
+
+        citations_match = re.search(r'"citations"\s*:\s*(\[.*?\])', text, re.DOTALL)
+        citations: list[dict] = []
+        if citations_match:
+            try:
+                citations = json.loads(citations_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        logger.warning("Recovered from malformed JSON: answer=%d chars, citations=%d", len(answer), len(citations))
+        return answer, citations
+    except Exception as e:
         logger.warning("Failed to parse JSON response, using raw text: %s", e)
         return raw, []
 
 
 def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
-    """Add drive_url to each citation using file_id from retrieved chunks."""
-    chunk_map = {
-        c.get("metadata", {}).get("file_id"): c.get("metadata", {})
-        for c in chunks
-    }
+    """Add drive_url to each citation. Matches by file_id first, then title."""
+    by_file_id: dict[str, dict] = {}
+    by_title: dict[str, dict] = {}
+    for c in chunks:
+        meta = c.get("metadata", {})
+        fid = meta.get("file_id", "")
+        title = meta.get("file_title", "")
+        if fid:
+            by_file_id[fid] = meta
+        if title:
+            by_title[title.lower()] = meta
+
     enriched = []
     for cite in citations:
         file_id = cite.get("file_id", "")
-        meta = chunk_map.get(file_id, {})
+        title = cite.get("title", "")
+        meta = by_file_id.get(file_id) or by_title.get(title.lower()) or {}
+        resolved_fid = file_id or meta.get("file_id", "")
         enriched.append({
             "title": cite.get("title") or meta.get("file_title", "Unknown"),
             "date": cite.get("date") or meta.get("date"),
-            "file_id": file_id,
-            "drive_url": f"https://drive.google.com/file/d/{file_id}/view" if file_id else None,
+            "file_id": resolved_fid,
+            "drive_url": f"https://drive.google.com/file/d/{resolved_fid}/view" if resolved_fid else None,
             "relevance_score": cite.get("relevance_score", 0),
         })
     return enriched
@@ -113,8 +150,8 @@ async def run(
     if client is None:
         client = _get_client()
 
-    # 1. Classify mode
-    mode = classify_mode(query, client=client)
+    # 1. Classify mode (sync Gemini call — run in thread to avoid blocking event loop)
+    mode = await asyncio.to_thread(classify_mode, query, client)
     logger.info("Agent mode: %s", mode)
 
     # 2. Retrieve context
@@ -128,12 +165,14 @@ async def run(
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
 
     try:
-        response = client.models.generate_content(
+        response = await asyncio.to_thread(
+            client.models.generate_content,
             model="gemini-2.5-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.2,
+                max_output_tokens=8192,
             ),
         )
         answer, citations = _parse_response(response.text)
@@ -148,7 +187,7 @@ async def run(
     created_doc_url = None
     if mode == "PLAN" and answer and "error" not in answer.lower():
         try:
-            created_doc_url = create_google_doc(query, answer, citations)
+            created_doc_url = await asyncio.to_thread(create_google_doc, query, answer, citations)
             logger.info("Google Doc created: %s", created_doc_url)
         except Exception as e:
             logger.error("Google Doc creation failed: %s", e)
