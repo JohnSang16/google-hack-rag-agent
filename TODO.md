@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 2 COMPLETE — starting Session 3
+## Current Status: SESSION 3 COMPLETE — starting Session 4
 
 ---
 
@@ -50,17 +50,20 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Session 3 — Retrieval Layer
+## Session 3 — Retrieval Layer ✓ DONE (2026-06-04)
 **Goal:** Query returns relevant, reranked chunks for all 3 demo queries.
 
-- [ ] Write `src/retrieval/vector_search.py` — full $vectorSearch with metadata pre-filter
-- [ ] Write `src/retrieval/reranker.py` — Gemini scoring, return top-3
-- [ ] Write `src/retrieval/retriever.py` — combine search + rerank into one call
-- [ ] Test all 3 demo queries from docs/DEMO_SCRIPT.md manually
-- [ ] Tune: if Query 1 doesn't return Hacklanta sources, adjust chunk size or k
-- [ ] Tune: if Query 2 doesn't find attendance data, check aggregate chunks were stored
+- [x] Write `src/retrieval/vector_search.py` — full $vectorSearch with metadata pre-filter (Session 1)
+- [x] Write `src/retrieval/reranker.py` — Gemini scoring, return top-3
+- [x] Write `src/retrieval/retriever.py` — combine search + rerank into one call
+- [x] Test all 3 demo queries from docs/DEMO_SCRIPT.md manually
+- [x] Query 1: 3 results, scores 8-9, correct Hacklanta sources
+- [x] Query 3: 3 results, scores 9, correct Hacklanta sources
+- [~] Query 2: only 2 results, scores 4-6 — attendance aggregate files not yet ingested
 
-**Done when:** All 3 demo queries return correct, relevant results with good sources.
+**Known gap:** Query 2 (attendance trends) needs AGGREGATE files ingested.
+Share these with the service account and run `--priority aggregate`:
+- Combined Attendance, Hacklanta Check in, Involvement Fair Signups
 
 ---
 
