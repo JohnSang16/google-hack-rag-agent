@@ -57,7 +57,7 @@ def is_useful_chunk(chunk_text: str, client: genai.Client = None) -> bool:
     prompt = _PROMPT_TEMPLATE.format(chunk_text=chunk_text[:MAX_CHARS_TO_SCORE])
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash", contents=prompt
+            model="gemini-2.5-flash", contents=prompt
         )
         return response.text.strip().upper().startswith("YES")
     except Exception as e:

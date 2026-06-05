@@ -9,7 +9,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "text-embedding-004"
+EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMS = 768
 RATE_LIMIT_DELAY = 0.1
 
@@ -32,7 +32,10 @@ def get_embedding(
         result = client.models.embed_content(
             model=model_name,
             contents=text,
-            config=genai.types.EmbedContentConfig(task_type=task_type),
+            config=genai.types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=EMBEDDING_DIMS,
+            ),
         )
         embedding = result.embeddings[0].values
         if len(embedding) != EMBEDDING_DIMS:
@@ -56,7 +59,10 @@ def get_embeddings_batch(
             result = client.models.embed_content(
                 model=model_name,
                 contents=text,
-                config=genai.types.EmbedContentConfig(task_type=task_type),
+                config=genai.types.EmbedContentConfig(
+                    task_type=task_type,
+                    output_dimensionality=EMBEDDING_DIMS,
+                ),
             )
             embeddings.append(list(result.embeddings[0].values))
         except Exception as e:
