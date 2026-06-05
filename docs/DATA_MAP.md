@@ -1,11 +1,11 @@
-# Data Map — Google Drive Ingestion
+# Data Map  -  Google Drive Ingestion
 
 Drive root folder: `11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-`
 
 ## Labels
-- **INGEST** — read, chunk, embed, store directly
-- **AGGREGATE** — summarize first (strip PII), then store the summary
-- **SKIP** — do not ingest
+- **INGEST**  -  read, chunk, embed, store directly
+- **AGGREGATE**  -  summarize first (strip PII), then store the summary
+- **SKIP**  -  do not ingest
 
 ---
 
@@ -28,6 +28,8 @@ These are the most important for demo queries. Start here.
 | FINANCE: 2025-2026 Bookkeeping | 1G3sGarC2J31ihYH_QqCwB4Q0Dcwr3TYfwuGjVz4DSlQ | INGEST | financial | null |
 | [NEW] growth team meeting minutes | 15hXSGRfeYiyTrJ6qY6JE0fQaO9A_BT24M5PPqEyPazo | INGEST | meeting_notes | null |
 | Operations Meeting Notes | 1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk | INGEST | meeting_notes | null |
+| Progsu Org Structure | 17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww | INGEST | wiki | null |
+| GENERAL: Roles and Responsibilities 2025 | 1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc | INGEST | wiki | null |
 
 ---
 
@@ -77,9 +79,7 @@ These are the most important for demo queries. Start here.
 | PROGSU Company Partnership Opportunities | 1u94gnTmZpoJdkjUGDWCKL3_WhqI7v5VumlVc1zXkL7I | INGEST | growth |
 | Growth Team | 1fWSXp0M8gj-finvR3vNFnC0GZABv8SHgGy6bUHsToPw | INGEST | growth |
 | Growth Team Event Procedure Template | 1lf8mq46UNx7SLwQqD5Z6bNUSfFZYjxmWv4zoT-fwc1w | INGEST | blueprint |
-| Progsu Org Structure | 17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww | INGEST | wiki |
 | wiki.progsu | 1JUHwQMGKHptHS9E8Yuk78UXnC-FqM9ZSREzHw1f70ro | INGEST | wiki |
-| GENERAL: Roles and Responsibilities 2025 | 1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc | INGEST | wiki |
 | GENERAL: Weekly Sprints + Agenda (Fall 25) | 1BOYxgj4pwCdMJ_VURezA9sckOI7sPa38wZRJgYE4hN0 | INGEST | meeting_notes |
 | 2024-2025 Monthly Goals | 1sDxba-qfSQftE9WbMHrQcggPgKbcFTmmjiU_c8GHqU4 | INGEST | growth |
 | EVENT SCHEDULE FALL 2025 | 1S-y6Q_Rt9b7T0ynblBBMALSI_8QCrDc3Uay-Hoe00BI | INGEST | event_logistics |
@@ -89,14 +89,14 @@ These are the most important for demo queries. Start here.
 
 ## Priority 5: Spring 2026 Events
 
-| File Title | File ID | Action | Event |
-|---|---|---|---|
-| Resume Workshop Event Master/Checklist | 1IEkw4lnb7hl3btJMlyD0RTFNHgDtdwP3oyrtNM9G0Uo | INGEST | resume_workshop |
-| Networking Workshop Event Master/Checklist | 1HmTJVzWhOYDGsVXYQtdxqWA15-n5MzT9rDL5CVosv2g | INGEST | networking_workshop |
-| Judge/Mentor Packet - Hacklanta Spring 26 | 1kGx2SPb-9JpsFAss3bWfGI4SSkyaXlLEK6Yz_kphWlg | INGEST | hacklanta |
-| FINANCE: 2026-2027 Bookkeeping | 1_T2VOddzhsabMDnnywRVmXXWNwo-Pe3geFiTVtJJ1Bg | INGEST | null |
-| HackJam Curriculum and Date Planning | 1nKFvUskZxk7EFEqUHM0jMoUA1vUpDQjslOMNyJwDNfo | INGEST | hackjam |
-| DSA Curriculum and TimeLine | 1UTow1GNbNbGWbkQ3a9GHZFxRJvlV4Y5Lr7Qx4IZHoyk | INGEST | dsa_workshop |
+| File Title | File ID | Action | Doc Type | Event |
+|---|---|---|---|---|
+| Resume Workshop Event Master/Checklist | 1IEkw4lnb7hl3btJMlyD0RTFNHgDtdwP3oyrtNM9G0Uo | INGEST | event_logistics | resume_workshop |
+| Networking Workshop Event Master/Checklist | 1HmTJVzWhOYDGsVXYQtdxqWA15-n5MzT9rDL5CVosv2g | INGEST | event_logistics | networking_workshop |
+| Judge/Mentor Packet - Hacklanta Spring 26 | 1kGx2SPb-9JpsFAss3bWfGI4SSkyaXlLEK6Yz_kphWlg | INGEST | event_logistics | hacklanta |
+| FINANCE: 2026-2027 Bookkeeping | 1_T2VOddzhsabMDnnywRVmXXWNwo-Pe3geFiTVtJJ1Bg | INGEST | financial | null |
+| HackJam Curriculum and Date Planning | 1nKFvUskZxk7EFEqUHM0jMoUA1vUpDQjslOMNyJwDNfo | INGEST | blueprint | hackjam |
+| DSA Curriculum and TimeLine | 1UTow1GNbNbGWbkQ3a9GHZFxRJvlV4Y5Lr7Qx4IZHoyk | INGEST | blueprint | dsa_workshop |
 
 ---
 
@@ -118,15 +118,15 @@ These contain PII rows. Summarize to aggregate stats only before ingesting.
 
 ---
 
-## Special Case: Progsu Master Doc (22MB — Tab Export Required)
+## Special Case: Progsu Master Doc (22MB  -  Tab Export Required)
 
 File ID: `1CckqpcWenCg_FvOB2J-X6blUUIH0JSnlMEUTmUQMEiM`
 
 Cannot be exported as one file. Use Google Docs API to export each tab individually.
 High-value tabs to prioritize:
-- `t.s9nk0rrx742x` — Events + Finished Events (Claude Workshop run of show, Hacklanta tab)
-- Carousel tab — Claude Code carousel content (MCPs, skills, subagents)
-- Outreach tab — sponsor strategy, one-pager links
+- `t.s9nk0rrx742x`  -  Events + Finished Events (Claude Workshop run of show, Hacklanta tab)
+- Carousel tab  -  Claude Code carousel content (MCPs, skills, subagents)
+- Outreach tab  -  sponsor strategy, one-pager links
 
 ## Skip List
 

@@ -8,7 +8,7 @@ However, attendee data was collected for org operations, not for AI querying. We
 
 ---
 
-## Always Strip (Regex Pass — Run on Every Document)
+## Always Strip (Regex Pass  -  Run on Every Document)
 
 ```python
 import re
@@ -30,7 +30,7 @@ def strip_pii_regex(text: str) -> str:
 
 ## Files Requiring Full Aggregation (Never Ingest Raw)
 
-These files contain rows of individual attendee data. Do not chunk them — summarize them into a single aggregate chunk instead.
+These files contain rows of individual attendee data. Do not chunk them  -  summarize them into a single aggregate chunk instead.
 
 ```python
 AGGREGATE_FILE_IDS = [
@@ -73,7 +73,7 @@ Content:
 
 ## Safe to Keep
 
-The following types of names are fine to keep — they are public-facing org members:
+The following types of names are fine to keep  -  they are public-facing org members:
 
 ```python
 EXEC_NAMES = [
@@ -117,4 +117,4 @@ def check_chunk_for_pii(chunk_text: str) -> list[str]:
     return found
 ```
 
-Log a warning if any PII is found in stored chunks. Do not block ingestion — log and flag for manual review.
+Log a warning if any PII is found in stored chunks. Do not block ingestion  -  log and flag for manual review.

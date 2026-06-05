@@ -163,3 +163,9 @@ discord_export/
 *.log
 logs/
 ingestion_log.txt
+
+# BMAD output (generated content, not source code)
+_bmad-output/
+
+# Credentials
+.env

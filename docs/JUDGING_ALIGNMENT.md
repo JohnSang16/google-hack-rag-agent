@@ -39,11 +39,11 @@ Every build decision maps back to these four criteria. When in doubt about what 
 ### Required to Score Here
 
 **Interface elements that show intentional design:**
-- Mode badge on every response (RECALL / ANALYZE / PLAN) — tells the user what the agent is doing
-- Citation cards under every answer — source title, date, clickable Drive link
-- Streaming answer text — shows the agent is "thinking"
-- Google Doc link that appears after PLAN mode — a tangible artifact the user can touch
-- Empty state with suggested example queries — lowers the onboarding barrier
+- Mode badge on every response (RECALL / ANALYZE / PLAN)  -  tells the user what the agent is doing
+- Citation cards under every answer  -  source title, date, clickable Drive link
+- Streaming answer text  -  shows the agent is "thinking"
+- Google Doc link that appears after PLAN mode  -  a tangible artifact the user can touch
+- Empty state with suggested example queries  -  lowers the onboarding barrier
 
 **What "well thought out" means to judges:**
 - The UI has opinions. It doesn't just have a generic chat box.
@@ -69,11 +69,11 @@ Every build decision maps back to these four criteria. When in doubt about what 
 - The problem is universal and recurring
 
 **Secondary community:** Any small org with institutional knowledge problems
-- The pipeline is generalizable — swap the Drive folder ID and the agent works for any org
+- The pipeline is generalizable  -  swap the Drive folder ID and the agent works for any org
 - This is a template, not a one-off
 
 **Quantified impact in your case:**
-- progsu: $15k+ in sponsors secured, $5k in prizes distributed, 400+ attendees, Claude Code workshop with 200+ attendees
+- progsu: $20k in sponsors secured, $5k in prizes distributed, 400+ attendees, Claude Code workshop with 200+ attendees
 - Without this agent: the playbook for running a $15k hackathon lives in John's head and scattered docs
 - With this agent: the next Technical Director has instant access to every decision, every vendor negotiation, every lesson learned
 
@@ -83,7 +83,7 @@ Every build decision maps back to these four criteria. When in doubt about what 
 - The README quantifies: "Built on 1 year of real organizational data from a student tech org that ran a $20k-sponsored hackathon"
 
 ### What Would Hurt Here
-- Framing it as "a personal tool for one org" — too narrow
+- Framing it as "a personal tool for one org"  -  too narrow
 - Not naming the target community in the demo close
 - No quantification of the problem or scale
 
@@ -100,19 +100,19 @@ Most RAG demos:
 3. Get an answer
 
 This agent:
-1. Ingests multiple heterogeneous data sources (structured Drive docs + messy Discord)
-2. Applies a noise filter to clean Discord data before storage
+1. Ingests multiple heterogeneous data sources (structured Drive docs + Discord export)
+2. Applies a noise filter to every chunk before storage - critical for messy Discord data
 3. Uses metadata-aware retrieval to find temporally and categorically relevant chunks
 4. Reranks results for actual query relevance
 5. Classifies query intent and adapts behavior (not just retrieval)
-6. Takes an action — creates a real Google Doc that a user can use immediately
+6. Takes an action  -  creates a real Google Doc that a user can use immediately
 
 **The framing:**
-"Org OS" — the idea that every org's accumulated knowledge becomes an intelligence layer that survives leadership turnover. This is a memorable concept with a clear problem statement.
+"Org OS"  -  the idea that every org's accumulated knowledge becomes an intelligence layer that survives leadership turnover. This is a memorable concept with a clear problem statement.
 
 **The differentiator judges will remember:**
-The noise filter on Discord data. Handling messy conversational data well is hard. Most teams don't try. This team built a Gemini-powered filter that scores every Discord message before storage. Judges from MongoDB and Google understand why that's technically meaningful.
+The noise filter on ingested data, especially Discord. Handling messy conversational data well is hard. Most teams don't try. This team built a Gemini-powered filter that scores every chunk before storage - keeping only organizationally meaningful content. Judges from MongoDB and Google understand why that's technically meaningful.
 
 ### One-Paragraph Pitch for Devpost
 
-"Student tech orgs run on Google Drive and Discord. Decisions get buried in threads. Event playbooks live in documents that only the current leadership knows exist. When people graduate, the knowledge graduates with them. progsu Intelligence Agent ingests a year of real organizational data — meeting notes, event logistics, sponsor outreach, Discord decisions, financial records — and makes it instantly queryable. Ask what challenges came up at the last hackathon. Ask how attendance has grown. Ask the agent to draft a planning brief for the next event, and watch it create a real Google Doc from everything it learned. Built on Gemini, Google Cloud Agent Builder, and MongoDB Atlas. Designed for any student tech org that wants their history to work for them."
+"Student tech orgs run on Google Drive and Discord. Decisions get buried in threads. Event playbooks live in documents that only the current leadership knows exist. When people graduate, the knowledge graduates with them. progsu Intelligence Agent ingests a year of real organizational data  -  meeting notes, event logistics, sponsor outreach, Discord decisions, financial records  -  and makes it instantly queryable. Ask what challenges came up at the last hackathon. Ask how attendance has grown. Ask the agent to draft a planning brief for the next event, and watch it create a real Google Doc from everything it learned. Built on Gemini, Google Cloud Agent Builder, and MongoDB Atlas. Designed for any student tech org that wants their history to work for them."
