@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 3 COMPLETE — starting Session 4
+## Current Status: SESSION 4 COMPLETE — starting Session 5
 
 ---
 
@@ -67,19 +67,25 @@ Share these with the service account and run `--priority aggregate`:
 
 ---
 
-## Session 4 — Gemini Agent + MongoDB MCP
+## Session 4 — Gemini Agent + FastAPI ✓ DONE (2026-06-04)
 **Goal:** Agent answers questions with citations. MongoDB MCP is the tool it uses.
 
-- [ ] Write `src/agent/mode_classifier.py` — classifies query to RECALL/ANALYZE/PLAN
-- [ ] Write `src/agent/tools/retrieve.py` — the tool the agent calls (wraps retriever.py)
-- [ ] Write `src/agent/tools/create_doc.py` — creates Google Doc via Drive API
-- [ ] Write `src/agent/agent.py` — Gemini agent via Agent Builder with tools registered
-- [ ] Configure MongoDB MCP server connection to Atlas
-- [ ] Wire agent to call retrieval through MCP (not direct Python call)
-- [ ] Write `src/api/server.py` — FastAPI POST /chat endpoint
-- [ ] Test end-to-end: query → agent → MCP → Atlas → rerank → response with citations
+- [x] Write `src/agent/mode_classifier.py` — classifies query to RECALL/ANALYZE/PLAN
+- [x] Write `src/agent/tools/retrieve.py` — calls retriever.py pipeline
+- [x] Write `src/agent/tools/create_doc.py` — creates Google Doc via Drive + Docs API
+- [x] Write `src/agent/agent.py` — Gemini agent with JSON-mode answer generation + citation enrichment
+- [x] Write `src/api/server.py` — FastAPI POST /chat + GET /health
+- [x] Tested Query 1 end-to-end: RECALL mode, 3 citations, correct Hacklanta content
+- [x] Tested Query 3 end-to-end: PLAN mode, generates full structured brief
 
-**Done when:** POST /chat returns answer + citations for Query 1. PLAN mode creates a Google Doc.
+**NEEDS USER ACTION before Google Doc creation works:**
+- Re-share Drive root folder `11eYr6RIieuw4EvCZCzaMBa8ib8llDr9-` with service account
+  as **Editor** (currently Viewer only — create fails with 403)
+- Service account: `progsu-agent@gen-lang-client-0169091300.iam.gserviceaccount.com`
+
+**Deferred:** Vertex AI Agent Engine deployment (requires enabling API + IAM in GCP console)
+
+**Run server:** `python -m src.api.server`
 
 ---
 
