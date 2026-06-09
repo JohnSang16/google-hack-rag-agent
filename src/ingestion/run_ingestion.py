@@ -10,10 +10,13 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from google import genai
@@ -48,6 +51,18 @@ AGGREGATE_FILE_IDS = {
     "1SfX0WMhVv98e_lXxCDsEAz-FJ0F-WbXyddZv1e0iSJ0",  # Growth Team Interviews
     "1piZbWBvRcm25sArgmnC9IvHZ9RDkNKqTZz6C_rf8UBg",  # Old tech team interviews
     "1YRi0lmXM2zgLtGWDzEG9srndSm8zhcqhbrbaWK7U-Sw",  # t&d interviews
+}
+
+# ── Priority labels — included verbatim in metrics JSON so logs are self-documenting ──
+
+PRIORITY_LABELS = {
+    "1": "Highest-signal files for the 3 demo queries: Hacklanta event docs, core financials, growth master doc, key meeting notes. Ingest first.",
+    "2": "Team meeting notes across all teams and both semesters (exec, marketing, outreach, startup, tech, growth). Fall 2025 and Spring 2026.",
+    "3": "Event blueprints (HackJam, DSA, Resume Workshop, Shipathon, etc.) and operational guides (event planning, finance, logistics, VP ops, Luma, PIN).",
+    "4": "Growth strategy docs, org structure wiki, roles and responsibilities, weekly sprint agendas, nonprofit planning, company partnership opportunities.",
+    "5": "Spring 2026 event masters and checklists (Resume Workshop, Networking Workshop), Hacklanta judge packet, bookkeeping, HackJam and DSA curriculum.",
+    "aggregate": "PII-sensitive spreadsheets and interview transcripts summarized to aggregate stats before storing. Each file becomes exactly 1 chunk (no raw rows stored).",
+    "all": "All priorities 1-5 plus aggregate files in a single run.",
 }
 
 # ── File specs by priority ────────────────────────────────────────────────────
@@ -185,6 +200,7 @@ def ingest_file(
     agg_type = spec.get("agg_type")
 
     logger.info("=== Ingesting: %s ===", file_title)
+    file_start = time.monotonic()
 
     # Read from Drive
     text, fetched_title, mime_type = read_file_as_text(file_id, service=service)
@@ -207,8 +223,9 @@ def ingest_file(
             "chunk_index": 0,
         }
         store_chunk(summary, embedding, metadata, collection=collection)
-        logger.info("Aggregate stored: 1 summary chunk for '%s'", file_title)
-        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 1, "noise_pass_rate": 1.0}
+        elapsed = round(time.monotonic() - file_start, 2)
+        logger.info("Aggregate stored: 1 summary chunk for '%s' (%.1fs)", file_title, elapsed)
+        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 1, "noise_pass_rate": 1.0, "duration_s": elapsed, "aggregate": True}
 
     # INGEST path
     # 1. PII regex strip on full doc
@@ -220,7 +237,7 @@ def ingest_file(
 
     if not chunks:
         logger.warning("No chunks produced for '%s', skipping", file_title)
-        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 0, "noise_pass_rate": 0.0}
+        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 0, "chunks_before_filter": 0, "noise_pass_rate": 0.0, "duration_s": round(time.monotonic() - file_start, 2)}
 
     # 3. Gemini PII strip per chunk (skipped for large docs or when flag set)
     if not skip_gemini_pii:
@@ -237,7 +254,7 @@ def ingest_file(
 
     if not kept_chunks:
         logger.warning("All chunks filtered out for '%s'", file_title)
-        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 0, "noise_pass_rate": 0.0}
+        return {"file_id": file_id, "file_title": file_title, "chunks_stored": 0, "chunks_before_filter": len(chunks), "noise_pass_rate": 0.0, "duration_s": round(time.monotonic() - file_start, 2)}
 
     # 5. Embed + store
     stored = 0
@@ -259,16 +276,19 @@ def ingest_file(
         if i < len(kept_chunks) - 1:
             time.sleep(0.05)
 
+    elapsed = round(time.monotonic() - file_start, 2)
     logger.info(
-        "Stored %d chunks for '%s' (noise pass rate: %.0f%%)",
-        stored, file_title, noise_stats["pass_rate"] * 100,
+        "Stored %d chunks for '%s' (noise pass rate: %.0f%%, %.1fs)",
+        stored, file_title, noise_stats["pass_rate"] * 100, elapsed,
     )
     return {
         "file_id": file_id,
         "file_title": file_title,
-        "total_chunks": len(chunks),
+        "chunks_before_filter": len(chunks),
         "chunks_stored": stored,
-        "noise_pass_rate": noise_stats["pass_rate"],
+        "chunks_dropped": noise_stats["dropped"],
+        "noise_pass_rate": round(noise_stats["pass_rate"], 4),
+        "duration_s": elapsed,
     }
 
 
@@ -319,6 +339,8 @@ def main() -> None:
         }[args.priority]
 
     logger.info("Starting ingestion: %d files (priority=%s)", len(specs), args.priority)
+    run_start = time.monotonic()
+    run_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     results = []
     errors = []
@@ -333,20 +355,52 @@ def main() -> None:
             )
             results.append(result)
         except Exception as e:
-            logger.error("FAILED: %s — %s", spec.get("file_title", spec["file_id"]), e)
-            errors.append({"file_id": spec["file_id"], "error": str(e)})
+            logger.error("FAILED: %s - %s", spec.get("file_title", spec["file_id"]), e)
+            errors.append({"file_id": spec["file_id"], "file_title": spec.get("file_title", ""), "error": str(e)})
 
     # Summary
     total_chunks = sum(r.get("chunks_stored", 0) for r in results)
+    total_before_filter = sum(r.get("chunks_before_filter", r.get("chunks_stored", 0)) for r in results)
+    total_dropped = sum(r.get("chunks_dropped", 0) for r in results)
+    non_agg = [r for r in results if not r.get("aggregate")]
     avg_pass_rate = (
-        sum(r.get("noise_pass_rate", 0) for r in results) / len(results) if results else 0
+        sum(r.get("noise_pass_rate", 0) for r in non_agg) / len(non_agg) if non_agg else 0
     )
+    total_duration = round(time.monotonic() - run_start, 2)
+
     logger.info("=== Ingestion Complete ===")
     logger.info("Files processed: %d | Errors: %d", len(results), len(errors))
-    logger.info("Total chunks stored: %d", total_chunks)
+    logger.info("Total chunks stored: %d (before filter: %d, dropped: %d)", total_chunks, total_before_filter, total_dropped)
     logger.info("Average noise filter pass rate: %.0f%%", avg_pass_rate * 100)
+    logger.info("Total duration: %.1fs", total_duration)
     if errors:
         logger.warning("Failed files: %s", [e["file_id"] for e in errors])
+
+    # Write JSON metrics file
+    logs_dir = Path(__file__).resolve().parents[2] / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    metrics = {
+        "run_id": run_ts,
+        "priority": args.priority,
+        "priority_description": PRIORITY_LABELS.get(args.priority, "Custom single-file run."),
+        "project": "progsu Intelligence Agent — RAG pipeline for student org institutional memory (Google Cloud Hackathon)",
+        "mongodb_collection": os.getenv("MONGODB_COLLECTION", "chunks"),
+        "mongodb_db": os.getenv("MONGODB_DB_NAME", "progsu_intelligence"),
+        "skip_gemini_pii": args.skip_gemini_pii,
+        "files_targeted": len(specs),
+        "files_processed": len(results),
+        "files_failed": len(errors),
+        "total_chunks_before_filter": total_before_filter,
+        "total_chunks_stored": total_chunks,
+        "total_chunks_dropped": total_dropped,
+        "avg_noise_pass_rate": round(avg_pass_rate, 4),
+        "total_duration_s": total_duration,
+        "per_file": results,
+        "errors": errors,
+    }
+    out_path = logs_dir / f"ingestion_{run_ts}.json"
+    out_path.write_text(json.dumps(metrics, indent=2))
+    logger.info("Metrics written to %s", out_path)
 
 
 if __name__ == "__main__":

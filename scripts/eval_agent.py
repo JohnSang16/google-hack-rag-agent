@@ -36,32 +36,79 @@ load_dotenv()
 # ─────────────────────────────────────────────────────────────────────────────
 
 CRITERIA: dict[str, dict] = {
+    # ── Retrieval quality ──────────────────────────────────────────────────────
     "topic_relevance": {
-        "description": "Does the answer stay on topic and directly address what was asked? Penalize if it drifts to unrelated content (e.g. brag docs when asked about logistics).",
+        "description": (
+            "Does the answer stay on topic and directly address what was asked? "
+            "Penalize drift to unrelated content (e.g. brag docs when asked about logistics). "
+            "For follow-up queries, penalize if the agent lost the thread from the previous turn."
+        ),
         "weight": 2.0,
     },
     "grounded_in_sources": {
-        "description": "Are all specific claims backed by retrieved sources? Penalize hallucination or invented facts not present in the cited context.",
-        "weight": 2.0,
+        "description": (
+            "Are ALL specific claims backed by the retrieved sources shown in citations? "
+            "Penalize any invented facts, invented statistics, or details not traceable to a source. "
+            "This is the hallucination check: a 0 means the agent fabricated something; "
+            "a 10 means every claim has clear evidence in the retrieved context."
+        ),
+        "weight": 2.5,
     },
+    "citation_quality": {
+        "description": (
+            "Are citations actually useful? Penalize: citing a source but not drawing from it, "
+            "zero citations on a factual claim, or citing Discord when the content clearly came "
+            "from a Drive doc. A good citation directly supports the specific claim it annotates."
+        ),
+        "weight": 1.5,
+    },
+    "uncertainty_handling": {
+        "description": (
+            "Does the agent admit when it does not know rather than guessing? "
+            "If context is missing or thin, the agent should say so explicitly rather than "
+            "filling gaps with plausible-sounding invented details. "
+            "Penalize confident-sounding answers that outrun the available evidence."
+        ),
+        "weight": 1.5,
+    },
+    # ── Response quality ───────────────────────────────────────────────────────
     "no_wrong_attribution": {
-        "description": "Does the answer avoid attributing content to wrong people or surfacing first names from meeting notes as decision-makers? Claims should be attributed to teams or roles, not random attendee names.",
+        "description": (
+            "Does the answer avoid attributing content to wrong people? "
+            "Claims should go to teams or roles, not first names of meeting attendees. "
+            "Penalize surfacing 'Uyi said' or 'MJ recommended' from meeting notes."
+        ),
         "weight": 1.5,
     },
     "appropriate_detail": {
-        "description": "Is the level of detail right? Answer should open with a summary, then unpack specifics. Not padded. Not surface-level. No unnecessary repetition.",
+        "description": (
+            "Is the detail level right? Summary first, then specifics. Not padded. "
+            "Not surface-level. No unnecessary repetition. "
+            "Penalize answers that are either too vague to be useful or too long to digest."
+        ),
         "weight": 1.0,
     },
     "consolidation": {
-        "description": "Are closely related points merged into one bullet rather than artificially split? Penalize if the same underlying issue appears as multiple separate bullets.",
+        "description": (
+            "Are closely related points merged into one bullet rather than split? "
+            "Penalize if the same underlying issue appears as multiple separate bullets "
+            "(e.g. parking + navigation as two bullets when they are one problem)."
+        ),
         "weight": 1.0,
     },
     "naming_conventions": {
-        "description": "Does the answer correctly use 'Hacklanta 1' for the Spring 2026 event and 'Hacklanta II' when referring to future planning?",
+        "description": (
+            "Does the answer use 'Hacklanta 1' for the Spring 2026 event "
+            "and 'Hacklanta II' for future planning? Penalize any other form."
+        ),
         "weight": 0.5,
     },
     "tone_and_clarity": {
-        "description": "Is the language plain, direct, and conversational? Could a new member follow it? Penalize academic padding, jargon without explanation, or overly generic advice.",
+        "description": (
+            "Is the language plain, direct, and conversational? "
+            "Could a new member follow it without prior context? "
+            "Penalize academic padding, jargon without explanation, or generic filler advice."
+        ),
         "weight": 1.0,
     },
 }
@@ -148,6 +195,31 @@ TEST_CASES: list[dict] = [
             "Should describe real coordination items, not generic team activity."
         ),
     },
+    {
+        "id": "q_hallucination",
+        "query": "What were the exact dollar amounts paid to each individual vendor at Hacklanta and their contact emails?",
+        "history": [],
+        "mode_expected": "RECALL",
+        "notes": (
+            "This is a hallucination trap. The org data does NOT contain per-vendor payment "
+            "breakdowns or vendor email addresses (PII stripped). "
+            "A good agent should say it does not have that level of detail rather than "
+            "inventing figures or emails. Score uncertainty_handling a 10 if it admits "
+            "the gap; score it 0 if it invents specific numbers or contact details."
+        ),
+    },
+    {
+        "id": "q_out_of_scope",
+        "query": "What is the best way to raise a Series A for a student startup?",
+        "history": [],
+        "mode_expected": "RECALL",
+        "notes": (
+            "Completely out of scope for the progsu knowledge base. "
+            "A good agent should say it does not have relevant org data on this topic "
+            "rather than giving generic startup advice. "
+            "Penalize any answer that invents progsu-specific startup fundraising history."
+        ),
+    },
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,9 +249,16 @@ Score this response on each criterion from 0 to 10:
 
 {criteria_block}
 
-Important notes for grading:
+Hallucination detection rules:
+- A claim is hallucinated if it cannot be traced to the retrieved context shown above.
+- Invented statistics, made-up dates, and plausible-but-absent details all count as hallucinations.
+- Fluent, confident-sounding language does NOT make a claim grounded — only source evidence does.
+- If the agent said "I don't have enough information" when context was thin, reward that as good uncertainty handling.
+- If the agent invented details to fill a gap, penalize grounded_in_sources AND uncertainty_handling.
+
+Other grading notes:
 - The first Hacklanta event (Spring 2026) should be called "Hacklanta 1". Future events = "Hacklanta II".
-- Attribution of opinions/feedback should go to teams or roles, not first names of meeting attendees.
+- Attribution should go to teams or roles, not first names of meeting attendees.
 - Follow-up queries should stay on the topic established in the conversation history.
 
 Evaluator context (what a good answer should cover):
