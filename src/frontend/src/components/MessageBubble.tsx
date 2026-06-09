@@ -12,6 +12,21 @@ function renderInline(text: string): (ReactNode | string)[] {
   });
 }
 
+function isTableSeparator(line: string): boolean {
+  return /^\|[\s\-:|]+\|$/.test(line.trim());
+}
+
+function parseTableBlock(lines: string[]) {
+  const rows = lines
+    .filter((l) => l.trim().startsWith('|') && !isTableSeparator(l))
+    .map((l) =>
+      l.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim())
+    );
+  if (rows.length < 2) return null;
+  const [header, ...body] = rows;
+  return { header, body };
+}
+
 function renderContent(text: string) {
   const blocks = text.split(/\n\n+/);
   return blocks.map((block, i) => {
@@ -22,6 +37,36 @@ function renderContent(text: string) {
     }
     if (block.startsWith('# ')) {
       return <h3 key={i} className="msg__heading">{renderInline(block.slice(2))}</h3>;
+    }
+
+    // Markdown table: any block where most lines start with |
+    const tableLines = lines.filter((l) => l.trim().startsWith('|'));
+    if (tableLines.length >= 2 && tableLines.length >= lines.length - 1) {
+      const parsed = parseTableBlock(lines);
+      if (parsed) {
+        return (
+          <div key={i} className="msg__table-wrap">
+            <table className="msg__table">
+              <thead>
+                <tr>
+                  {parsed.header.map((cell, j) => (
+                    <th key={j}>{renderInline(cell)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parsed.body.map((row, j) => (
+                  <tr key={j}>
+                    {row.map((cell, k) => (
+                      <td key={k}>{renderInline(cell)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
     }
 
     const isList = lines.every((l) => l.match(/^[-*]\s/));

@@ -27,16 +27,31 @@ app.add_middleware(
 )
 
 
+class HistoryItem(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     query: str
     filters: Optional[dict] = None
+    history: Optional[list[HistoryItem]] = None
+
+
+class DiscordMessage(BaseModel):
+    time: str
+    author: str
+    content: str
 
 
 class Citation(BaseModel):
     title: str
     date: Optional[str] = None
     file_id: str
+    source_type: str = "google_drive"
     drive_url: Optional[str] = None
+    discord_url: Optional[str] = None
+    messages: Optional[list[DiscordMessage]] = None
     relevance_score: float
 
 
@@ -63,6 +78,7 @@ async def chat(request: ChatRequest):
         result = await _agent.run(
             query=request.query,
             filters=request.filters or None,
+            history=[h.model_dump() for h in request.history] if request.history else None,
         )
         return ChatResponse(
             mode=result["mode"],

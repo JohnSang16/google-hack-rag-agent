@@ -1,6 +1,6 @@
+import json
 import logging
 import os
-import time
 
 from google import genai
 from dotenv import load_dotenv
@@ -9,26 +9,26 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_RERANK_PROMPT = """You are scoring how relevant a retrieved document chunk is to a user's query.
+_RERANK_BATCH_PROMPT = """You are scoring how relevant retrieved document chunks are to a user's query.
 
 Query: {query}
 
-Chunk: {chunk_text}
-Source: {file_title} ({date})
-
-Score this chunk from 1-10 where:
+Score each chunk from 0-10 where:
 10 = Directly and specifically answers the query with concrete details
 7-9 = Highly relevant, contains most of what the query needs
 4-6 = Somewhat relevant, tangentially related
 1-3 = Barely relevant or only shares keywords
 0 = Not relevant at all
 
-Respond with only a number 1-10."""
+Chunks to score:
+
+{chunks_block}
+
+Respond with ONLY a JSON array of integers, one score per chunk in order. Example for 3 chunks: [8, 3, 7]"""
 
 MIN_SCORE = 6
 MIN_RESULTS = 2
-MAX_CHUNK_CHARS = 2_000
-RATE_LIMIT_DELAY = 0.15
+MAX_CHUNK_CHARS = 800
 
 
 def _get_client() -> genai.Client:
@@ -38,31 +38,47 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def _score_chunk(query: str, chunk: dict, client: genai.Client) -> int:
-    """Score a single chunk against a query. Returns 0-10."""
-    text = chunk.get("text", "")[:MAX_CHUNK_CHARS]
-    file_title = chunk.get("metadata", {}).get("file_title", "Unknown")
-    date = chunk.get("metadata", {}).get("date") or "n/a"
+def _build_chunks_block(chunks: list[dict]) -> str:
+    lines = []
+    for i, chunk in enumerate(chunks):
+        meta = chunk.get("metadata", {})
+        title = meta.get("file_title", "Unknown")
+        date = meta.get("date") or "n/a"
+        text = chunk.get("text", "")[:MAX_CHUNK_CHARS]
+        lines.append(f"[{i}] Source: {title} ({date})\n{text}")
+    return "\n\n".join(lines)
 
-    prompt = _RERANK_PROMPT.format(
-        query=query, chunk_text=text, file_title=file_title, date=date
+
+def _batch_score(query: str, chunks: list[dict], client: genai.Client) -> list[int]:
+    """Score all chunks in a single Gemini call. Returns list of ints same length as chunks."""
+    prompt = _RERANK_BATCH_PROMPT.format(
+        query=query,
+        chunks_block=_build_chunks_block(chunks),
     )
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.0,
+            ),
         )
         raw = response.text.strip()
-        score = int("".join(c for c in raw if c.isdigit())[:2])
-        return min(max(score, 0), 10)
+        scores = json.loads(raw)
+        if isinstance(scores, list) and len(scores) == len(chunks):
+            return [min(max(int(s), 0), 10) for s in scores]
+        logger.warning("Unexpected reranker response shape, defaulting scores to 5")
+        return [5] * len(chunks)
     except Exception as e:
-        logger.warning("Reranker scoring failed, defaulting to 5: %s", e)
-        return 5
+        logger.warning("Batch reranker failed, defaulting all scores to 5: %s", e)
+        return [5] * len(chunks)
 
 
 def rerank(query: str, chunks: list[dict], client: genai.Client = None) -> list[dict]:
     """
-    Score each chunk against the query and return the top results.
-    Keeps chunks scoring >= 6. If fewer than MIN_RESULTS qualify, returns top MIN_RESULTS.
+    Score all chunks against the query in one Gemini call, return top results.
+    Keeps chunks scoring >= MIN_SCORE. If fewer than MIN_RESULTS qualify, returns top MIN_RESULTS.
     Each returned dict gains a 'relevance_score' key.
     """
     if not chunks:
@@ -71,20 +87,17 @@ def rerank(query: str, chunks: list[dict], client: genai.Client = None) -> list[
     if client is None:
         client = _get_client()
 
-    scored = []
-    for i, chunk in enumerate(chunks):
-        score = _score_chunk(query, chunk, client)
-        scored.append({**chunk, "relevance_score": score})
-        logger.debug(
-            "Chunk %d '%s' score: %d",
-            i,
-            chunk.get("metadata", {}).get("file_title", "?"),
-            score,
-        )
-        if i < len(chunks) - 1:
-            time.sleep(RATE_LIMIT_DELAY)
+    scores = _batch_score(query, chunks, client)
 
+    scored = [{**chunk, "relevance_score": score} for chunk, score in zip(chunks, scores)]
     scored.sort(key=lambda c: c["relevance_score"], reverse=True)
+
+    for c in scored:
+        logger.debug(
+            "Chunk '%s' score: %d",
+            c.get("metadata", {}).get("file_title", "?"),
+            c["relevance_score"],
+        )
 
     qualified = [c for c in scored if c["relevance_score"] >= MIN_SCORE]
     if len(qualified) >= MIN_RESULTS:

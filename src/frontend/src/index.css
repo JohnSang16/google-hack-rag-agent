@@ -275,6 +275,12 @@ body { margin: 0; background: var(--bg-page); }
 .msg__list { margin: 0 0 10px; padding-left: 20px; }
 .msg__list li { margin-bottom: 4px; }
 
+.msg__table-wrap { overflow-x: auto; margin: 0 0 10px; }
+.msg__table { border-collapse: collapse; font-size: 12px; width: 100%; }
+.msg__table th { background: #f3f4f6; font-weight: 600; text-align: left; padding: 6px 10px; border: 1px solid var(--border); color: var(--text-primary); }
+.msg__table td { padding: 5px 10px; border: 1px solid var(--border); color: var(--text-primary); }
+.msg__table tr:nth-child(even) td { background: #fafafa; }
+
 /* ── Google Doc link ── */
 .doc-link {
   display: inline-flex;
@@ -355,6 +361,65 @@ body { margin: 0; background: var(--bg-page); }
 .rel--high { color: var(--plan); }
 .rel--med  { color: #d97706; }
 .rel--low  { color: var(--text-secondary); }
+
+.citation__link-label {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.citation__messages-section { margin-top: 6px; }
+
+.citation__messages-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0;
+  font-family: var(--sans);
+}
+
+.citation__messages-toggle:hover { color: var(--text-primary); }
+
+.discord-messages {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.discord-message {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  align-items: baseline;
+}
+
+.discord-message__time {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.discord-message__author {
+  font-weight: 600;
+  color: var(--recall);
+  flex-shrink: 0;
+}
+
+.discord-message__content {
+  color: var(--text-primary);
+  word-break: break-word;
+}
 
 /* ── Typing indicator ── */
 .typing {

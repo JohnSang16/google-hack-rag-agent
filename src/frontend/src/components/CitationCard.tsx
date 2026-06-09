@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Citation } from '../types';
+import type { Citation, DiscordMessage } from '../types';
 
 function scoreLabel(score: number): string {
   if (score >= 8) return 'High';
@@ -26,6 +26,63 @@ function formatDate(date: string | null): string {
   }
 }
 
+function DiscordMessageList({ messages }: { messages: DiscordMessage[] }) {
+  return (
+    <ul className="discord-messages">
+      {messages.map((m, i) => (
+        <li key={i} className="discord-message">
+          <span className="discord-message__time">{m.time}</span>
+          <span className="discord-message__author">{m.author}</span>
+          <span className="discord-message__content">{m.content}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CitationItem({ c }: { c: Citation }) {
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const isDiscord = c.source_type === 'discord';
+  const linkUrl = isDiscord ? c.discord_url : c.drive_url;
+  const linkLabel = isDiscord ? 'Open in Discord' : 'Open in Drive';
+  const hasMessages = isDiscord && c.messages && c.messages.length > 0;
+
+  return (
+    <li className="citation">
+      <div className="citation__title">
+        {linkUrl ? (
+          <a href={linkUrl} target="_blank" rel="noopener noreferrer">
+            {c.title}
+          </a>
+        ) : (
+          c.title
+        )}
+        {linkUrl && (
+          <span className="citation__link-label">{linkLabel}</span>
+        )}
+      </div>
+      <div className="citation__meta">
+        {c.date && <span className="citation__date">{formatDate(c.date)}</span>}
+        <span className={scoreClass(c.relevance_score)}>
+          {scoreLabel(c.relevance_score)} relevance
+        </span>
+      </div>
+      {hasMessages && (
+        <div className="citation__messages-section">
+          <button
+            className="citation__messages-toggle"
+            onClick={() => setMessagesOpen((o) => !o)}
+            aria-expanded={messagesOpen}
+          >
+            {messagesOpen ? '▾' : '▸'} {messagesOpen ? 'Hide' : 'Show'} messages ({c.messages!.length})
+          </button>
+          {messagesOpen && <DiscordMessageList messages={c.messages!} />}
+        </div>
+      )}
+    </li>
+  );
+}
+
 interface Props {
   citations: Citation[];
 }
@@ -49,23 +106,7 @@ export default function CitationCard({ citations }: Props) {
       {open && (
         <ul className="citations__list">
           {citations.map((c, i) => (
-            <li key={c.file_id + i} className="citation">
-              <div className="citation__title">
-                {c.drive_url ? (
-                  <a href={c.drive_url} target="_blank" rel="noopener noreferrer">
-                    {c.title}
-                  </a>
-                ) : (
-                  c.title
-                )}
-              </div>
-              <div className="citation__meta">
-                {c.date && <span className="citation__date">{formatDate(c.date)}</span>}
-                <span className={scoreClass(c.relevance_score)}>
-                  {scoreLabel(c.relevance_score)} relevance
-                </span>
-              </div>
-            </li>
+            <CitationItem key={c.file_id + i} c={c} />
           ))}
         </ul>
       )}

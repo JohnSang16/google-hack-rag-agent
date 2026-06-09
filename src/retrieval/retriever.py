@@ -13,7 +13,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-TOP_K = 10
+TOP_K = 5
 
 
 def _get_gemini_client() -> genai.Client:

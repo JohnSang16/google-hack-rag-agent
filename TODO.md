@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 5 COMPLETE — starting Session 6
+## Current Status: SESSION 6.5 IN PROGRESS — Discord ingested, latency fixed, needs Cloud Run redeploy + video + Devpost
 
 ---
 
@@ -115,19 +115,61 @@ blocking the async event loop. Fixed with asyncio.to_thread() in agent.py and re
 
 ---
 
-## Session 6 — Polish + Demo Prep
-**Goal:** Demo-ready. All 3 queries consistent. Video recorded.
+## Session 6 — Polish + Deploy (DONE as of 2026-06-05)
+**Goal:** Demo-ready. All 3 queries consistent. Deployed. Video recorded. Submitted.
 
-- [ ] Run all 3 demo queries 5 times each — verify consistent good output
-- [ ] Add remaining Drive files (Priority 2-5 from DATA_MAP.md)
-- [ ] Tune noise filter prompt if too many irrelevant chunks pass through
-- [ ] Tune chunking for Marketing Meetings (26MB) — chunk aggressively
-- [ ] Set up public GitHub repo with OSS license (MIT)
-- [ ] Deploy backend to Cloud Run or similar (needs hosted URL for submission)
-- [ ] Deploy frontend to Vercel or Firebase Hosting
-- [ ] Record 3-minute demo video following docs/DEMO_SCRIPT.md exactly
-- [ ] Write Devpost submission using pitch from docs/JUDGING_ALIGNMENT.md
+- [x] Add remaining Drive files (Priority 2-5 ingested — 71 new chunks in Atlas)
+- [x] Ingest aggregate files via Google Drive MCP — unblocked Query 2 attendance trends
+- [x] Deploy backend to Cloud Run: https://progsu-agent-346432646798.us-central1.run.app
+- [x] Deploy frontend to Vercel: https://frontend-coral-mu-47.vercel.app
+- [x] Verified all 3 demo queries pass against production (RECALL/ANALYZE/PLAN)
+- [x] Google Doc creation working in production via OAuth user credentials
+- [x] Fixed CORS, env vars, Atlas IP whitelist (0.0.0.0/0 added for Cloud Run)
+
+---
+
+## Session 6.5 — Discord Ingestion + Latency Fix (IN PROGRESS as of 2026-06-07)
+**Goal:** Get Discord data into Atlas, fix 78s query latency, redeploy, record video, submit.
+
+### Completed
+- [x] Wrote `src/ingestion/discord_reader.py` and `src/ingestion/run_discord_ingestion.py`
+- [x] Added channel skip filter (off-topic, bots, memes, graphics, receipts, etc.)
+- [x] Discord ingestion running — 73+ chunks from #hacklanta, #announcements, #exec-interest-meeting, #spring-kickoff, #claude-workshop, #involvement-fair, #progirls (more coming)
+- [x] Fixed critical latency bug: reranker was making 10 sequential Gemini calls (~70s). Rewrote to batch all chunks into 1 call. Q1: 78s → 24s. Q2: 83s → 15s. Q3: timeout → 38s + doc created.
+- [x] Parallelized mode classification with retrieval in agent.py (saves ~3s per query)
+- [x] Fixed em dash in create_doc.py doc title (violated CLAUDE.md rules)
+- [x] Drafted Devpost submission: docs/DEVPOST_DRAFT.md
+
+### Remaining — Human Action Required
+- [ ] Wait for Discord ingestion to finish (running now, ~73 chunks in so far)
+- [ ] **DEPLOY**: `gcloud run deploy progsu-agent --source . --region us-central1` — redeploys with batched reranker + Discord data in Atlas (no code changes needed for Atlas, data is already live; deploy needed for reranker + agent.py fixes)
+- [ ] Set up public GitHub repo with OSS license (MIT) — make repo public on GitHub
+- [ ] Run all 3 demo queries 5 times against production to confirm consistency after redeploy
+- [ ] Record 3-minute demo video following docs/DEMO_SCRIPT.md
+- [ ] Finalize and submit Devpost using docs/DEVPOST_DRAFT.md
 - [ ] Submit before June 11, 2026 @ 5:00pm EDT
+
+### Performance After Fix (local timings — Cloud Run will be faster)
+| Query | Before | After | Citations |
+|---|---|---|---|
+| Q1 RECALL | 78s (timeout on prod) | 24.6s | FAQs-Hacklanta, Operations Meeting Notes, Discord #hacklanta |
+| Q2 ANALYZE | 83s | 14.8s | Combined Attendance, Involvement Fair Signups |
+| Q3 PLAN | 100% timeout | 37.8s, doc created | Discord #hacklanta x2, Operations Meeting Notes |
+
+### Changed Files (need to be in next Cloud Run deploy)
+- `src/retrieval/reranker.py` — batched reranker (biggest fix)
+- `src/agent/agent.py` — parallel mode+retrieval
+- `src/agent/tools/create_doc.py` — em dash fix in doc title
+- `src/ingestion/run_discord_ingestion.py` — channel skip filter added
+
+**Live URLs:**
+- Backend: https://progsu-agent-346432646798.us-central1.run.app
+- Frontend: https://frontend-coral-mu-47.vercel.app
+
+**Deployment notes:**
+- Secret Manager used for drive_oauth_token.json (mounted at /secrets/, NOT /app/)
+- MongoDB Atlas IP whitelist: 0.0.0.0/0 added — remove after deadline if desired
+- VITE_API_URL set in Vercel env vars pointing to Cloud Run
 
 ---
 

@@ -1,8 +1,17 @@
+export interface DiscordMessage {
+  time: string;
+  author: string;
+  content: string;
+}
+
 export interface Citation {
   title: string;
   date: string | null;
   file_id: string;
+  source_type: string;
   drive_url: string | null;
+  discord_url?: string | null;
+  messages?: DiscordMessage[];
   relevance_score: number;
 }
 
@@ -31,4 +40,9 @@ export interface ChatResponse {
   answer: string;
   citations: Citation[];
   created_doc_url?: string;
+}
+
+export interface HistoryItem {
+  role: 'user' | 'agent';
+  content: string;
 }

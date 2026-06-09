@@ -16,24 +16,31 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_ANSWER_PROMPT = """You are an AI chief of staff for a student tech organization called progsu.
-You have retrieved the following context from the organization's documents.
+_ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one — knowledgeable, direct, and genuinely invested in the org's success.
 
 Mode: {mode}
-- RECALL: Answer what happened, what was decided, or what exists. Be specific and cite sources.
-- ANALYZE: Synthesize trends across multiple events and time periods. Show patterns and numbers.
-- PLAN: Write a comprehensive, structured planning document (markdown with sections).
 
-Retrieved Context:
+Response rules — apply to every answer:
+- Open with 1-2 sentences that directly answer the question. No preamble, no "great question."
+- Then unpack the detail using bullets or short paragraphs. Summary before depth, always.
+- Keep language plain and conversational. A new member should be able to follow it.
+- Never pad. If 3 bullets cover it, don't write 3 paragraphs.
+- Consolidate closely related points into one bullet. Do not split the same underlying issue into multiple bullets just because the details differ slightly. For example, parking location and parking navigation are one problem, not two.
+- Do not let one person's name or role dominate a response. Represent the collective team picture.
+- When referencing feedback, assignments, or decisions found in meeting notes, attribute them to the team or role (e.g., "the operations team flagged", "per the tech meeting") rather than by first names of meeting attendees. First names in meeting notes are usually attendees, not decision-makers — do not surface them as the source of authority.
+- The first Hacklanta event (Spring 2026) is Hacklanta 1. Any future hackathon being planned is Hacklanta II. Use these names consistently.
+
+Mode-specific output:
+- RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved — make the pain point feel real before explaining how it was addressed.
+- ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table of the key data points. Close with a 2-3 sentence narrative on what it means for the org.
+- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience.
+
+{history_section}Retrieved context:
 {context}
 
-User Query: {query}
+User query: {query}
 
-Instructions:
-1. Answer using ONLY the provided context. Do not invent facts not present in the sources.
-2. Every specific claim must be attributable to one of the sources above.
-3. For PLAN mode: write a full structured document with sections (## headings). Make it actionable.
-4. Output ONLY valid JSON with this exact structure (no markdown code fences around it):
+Output ONLY valid JSON with this exact structure (no markdown code fences):
 {{
   "answer": "<your complete response in markdown>",
   "citations": [
@@ -46,16 +53,17 @@ Instructions:
   ]
 }}
 
-Include only sources you actually used. Do not include sources you did not draw from."""
+Use only facts present in the retrieved context. Every specific claim must be attributable to a source. Include only sources you actually drew from."""
 
-_NO_CONTEXT_PROMPT = """You are an AI chief of staff for a student tech organization called progsu.
-No relevant context was found in the knowledge base for this query.
+_NO_CONTEXT_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You know the org's full history — events, meetings, decisions, people, and finances.
 
-User Query: {query}
+Nothing relevant came up in the knowledge base for this query.
+
+User query: {query}
 
 Respond with exactly this JSON:
 {{
-  "answer": "I could not find relevant information in the organization's documents for this query. Try rephrasing or ask about a specific event, meeting, or document.",
+  "answer": "I don't have anything on that in the org's records. Try asking about a specific event, meeting, or decision — I know Hacklanta, the Claude Workshop, our attendance growth, exec meetings, sponsorship strategy, and more.",
   "citations": []
 }}"""
 
@@ -110,7 +118,7 @@ def _parse_response(raw: str) -> tuple[str, list[dict]]:
 
 
 def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
-    """Add drive_url to each citation. Matches by file_id first, then title."""
+    """Add source URLs and display metadata to each citation."""
     by_file_id: dict[str, dict] = {}
     by_title: dict[str, dict] = {}
     for c in chunks:
@@ -128,19 +136,71 @@ def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
         title = cite.get("title", "")
         meta = by_file_id.get(file_id) or by_title.get(title.lower()) or {}
         resolved_fid = file_id or meta.get("file_id", "")
+        source_type = meta.get("source_type", "google_drive")
         enriched.append({
             "title": cite.get("title") or meta.get("file_title", "Unknown"),
             "date": cite.get("date") or meta.get("date"),
             "file_id": resolved_fid,
-            "drive_url": f"https://drive.google.com/file/d/{resolved_fid}/view" if resolved_fid else None,
+            "source_type": source_type,
+            "drive_url": (
+                f"https://drive.google.com/file/d/{resolved_fid}/view"
+                if resolved_fid and source_type != "discord"
+                else None
+            ),
+            "discord_url": meta.get("discord_url"),
+            "messages": meta.get("messages"),
             "relevance_score": cite.get("relevance_score", 0),
         })
     return enriched
 
 
+async def _rewrite_query_for_retrieval(query: str, history: list[dict], client: genai.Client) -> str:
+    """Rewrite a vague follow-up query into a self-contained search query using conversation history."""
+    if not history or len(query.split()) > 12:
+        return query
+    last_user = next((h["content"] for h in reversed(history) if h["role"] == "user"), "")
+    if not last_user:
+        return query
+    prompt = (
+        f"Given this conversation, rewrite the follow-up as a single self-contained search query "
+        f"for a document retrieval system. Output only the rewritten query, nothing else.\n\n"
+        f"Previous message: {last_user}\n"
+        f"Follow-up: {query}\n\n"
+        f"Rewritten search query:"
+    )
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(temperature=0.0, max_output_tokens=80),
+        )
+        rewritten = response.text.strip()
+        logger.info("Query rewritten for retrieval: '%s' -> '%s'", query[:60], rewritten[:60])
+        return rewritten
+    except Exception:
+        return query
+
+
+def _build_history_section(history: list[dict]) -> str:
+    """Format last N conversation turns for injection into the prompt."""
+    if not history:
+        return ""
+    lines = ["Conversation history (use this to understand what the current query is about):"]
+    for turn in history[-4:]:  # max 4 entries = 2 back-and-forth turns
+        role = turn.get("role", "")
+        content = str(turn.get("content", ""))[:400]  # truncate long answers
+        if role == "user":
+            lines.append(f"User: {content}")
+        elif role == "agent":
+            lines.append(f"Agent: {content}")
+    return "\n".join(lines) + "\n\n"
+
+
 async def run(
     query: str,
     filters: Optional[dict] = None,
+    history: Optional[list[dict]] = None,
     client: genai.Client = None,
 ) -> dict:
     """
@@ -150,21 +210,26 @@ async def run(
     if client is None:
         client = _get_client()
 
-    # 1. Classify mode (sync Gemini call — run in thread to avoid blocking event loop)
-    mode = await asyncio.to_thread(classify_mode, query, client)
+    # 1+2+3. Classify mode, rewrite retrieval query, and retrieve — all in parallel
+    retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
+    mode, chunks = await asyncio.gather(
+        asyncio.to_thread(classify_mode, query, client),
+        retrieve_context(retrieval_query, filters=filters, gemini_client=client),
+    )
     logger.info("Agent mode: %s", mode)
 
-    # 2. Retrieve context
-    chunks = await retrieve_context(query, filters=filters, gemini_client=client)
-
     # 3. Generate answer
+    history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)
-        prompt = _ANSWER_PROMPT.format(mode=mode, query=query, context=context_block)
+        prompt = _ANSWER_PROMPT.format(
+            mode=mode, query=query, context=context_block, history_section=history_section
+        )
     else:
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
 
     try:
+        max_tokens = 8192 if mode == "PLAN" else 2048
         response = await asyncio.to_thread(
             client.models.generate_content,
             model="gemini-2.5-flash",
@@ -172,7 +237,7 @@ async def run(
             config=genai.types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.2,
-                max_output_tokens=8192,
+                max_output_tokens=max_tokens,
             ),
         )
         answer, citations = _parse_response(response.text)

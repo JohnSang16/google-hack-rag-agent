@@ -5,6 +5,14 @@ Reference files: docs/ARCHITECTURE.md, docs/DATA_MAP.md, docs/PII_RULES.md, docs
 
 ---
 
+## MUST READ BEFORE CREATING ANY OUTPUT, ARTIFACT, OR TEXT RESPONSE
+
+1. **No em dashes or dashes of any kind.** Never use em dashes (—), en dashes (–), or hyphens as prose connectors (e.g. "this - that"). Use commas, periods, or restructure the sentence instead. This applies to every piece of text the agent writes or generates: chat responses, Google Docs, doc titles, headings, bullets, everything.
+
+2. **progsu capitalization is always "progsu" or "Progsu".** Never write "PROgsu", "ProGSU", "PROGSU", or any other variant. Sentence-start: "Progsu". Mid-sentence or title: "progsu".
+
+---
+
 ## What This Is
 
 An AI chief of staff for student tech org leaders. It ingests a year of organizational data from Google Drive and Discord, stores it in MongoDB Atlas, and lets a Gemini agent answer strategic questions with cited sources and take actions (like creating Google Docs).

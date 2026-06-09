@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import type { ChatResponse, Message } from '../types';
+import type { ChatResponse, HistoryItem, Message } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 import MessageBubble from './MessageBubble';
@@ -37,7 +37,16 @@ export default function ChatInterface() {
     setLoading(true);
 
     try {
-      const { data } = await axios.post<ChatResponse>(`${API_BASE}/chat`, { query });
+      // Build history from last 4 messages (2 back-and-forth turns) before this query
+      const history: HistoryItem[] = messages
+        .slice(-4)
+        .filter((m) => m.role === 'user' || m.role === 'agent')
+        .map((m) => ({
+          role: m.role as 'user' | 'agent',
+          content: m.role === 'agent' ? (m as { content: string }).content.slice(0, 400) : (m as { content: string }).content,
+        }));
+
+      const { data } = await axios.post<ChatResponse>(`${API_BASE}/chat`, { query, history });
       setMessages((prev) => [
         ...prev,
         {

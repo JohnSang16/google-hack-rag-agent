@@ -19,14 +19,18 @@ SCOPES = [
 
 PLAN_OUTPUT_FOLDER_ID = "1_3u5kxsAC91LQyfBOgkVGqlYlHB4a5ou"
 DRIVE_FILE_BASE_URL = "https://docs.google.com/document/d/"
-OAUTH_TOKEN_FILE = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "drive_oauth_token.json")
+OAUTH_TOKEN_FILE = next(
+    (p for p in [
+        "/secrets/drive_oauth_token.json",        # Cloud Run secret mount
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "drive_oauth_token.json")),  # local dev
+    ] if os.path.exists(p)),
+    None,
 )
 
 
 def _get_services():
-    if os.path.exists(OAUTH_TOKEN_FILE):
-        logger.debug("Using OAuth user credentials for Drive")
+    if OAUTH_TOKEN_FILE and os.path.exists(OAUTH_TOKEN_FILE):
+        logger.debug("Using OAuth user credentials for Drive: %s", OAUTH_TOKEN_FILE)
         creds = Credentials.from_authorized_user_file(OAUTH_TOKEN_FILE, SCOPES)
     else:
         logger.debug("Using service account credentials for Drive")
@@ -201,7 +205,7 @@ def create_google_doc(
     folder_id: str = PLAN_OUTPUT_FOLDER_ID,
 ) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
-    title = f"[progsu Agent] {query[:60].rstrip()} — {today}"
+    title = f"[progsu Agent] {query[:60].rstrip()}, {today}"
 
     try:
         drive_service, docs_service = _get_services()
