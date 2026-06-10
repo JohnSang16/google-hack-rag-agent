@@ -208,10 +208,19 @@ export default function ChatInterface() {
         <>
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-2xl mx-auto px-4 py-8 flex flex-col gap-4">
-              {messages.map((msg, i) => (
-                <MessageBubble key={i} message={msg} />
-              ))}
-              {loading && <TypingIndicator />}
+              {messages.map((msg, i) => {
+                // Hide the empty streaming placeholder — TypingIndicator covers this state
+                const isStreamingPlaceholder =
+                  loading &&
+                  msg.role === 'agent' &&
+                  (msg as { content: string }).content === '' &&
+                  i === messages.length - 1;
+                if (isStreamingPlaceholder) return null;
+                return <MessageBubble key={i} message={msg} />;
+              })}
+              {loading && (messages[messages.length - 1]?.role !== 'agent' || (messages[messages.length - 1] as { content: string }).content === '') && (
+                <TypingIndicator />
+              )}
               <div ref={bottomRef} />
             </div>
           </div>
