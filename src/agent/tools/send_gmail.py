@@ -160,14 +160,14 @@ def delete_gmail_draft(draft_id: str) -> None:
 def build_plan_email_body(query: str, summary: str, doc_url: Optional[str], event_url: Optional[str]) -> str:
     """Build the email body for a PLAN mode draft."""
     lines = [
-        f"Hi team,",
-        f"",
-        f"The progsu Intelligence Agent has prepared a planning brief for:",
+        "Hi team,",
+        "",
+        "The progsu Intelligence Agent has prepared a planning brief for:",
         f'"{query}"',
-        f"",
-        f"Summary:",
+        "",
+        "Summary:",
         summary,
-        f"",
+        "",
     ]
     if doc_url:
         lines += [f"Full Planning Brief: {doc_url}", ""]

@@ -9,7 +9,6 @@ DiscordChatExporter CLI (--format Json). Each file = one channel.
 """
 import argparse
 import logging
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv

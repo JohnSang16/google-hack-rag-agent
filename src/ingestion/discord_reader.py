@@ -92,7 +92,7 @@ def _build_chunk(
     chunk_index: int,
 ) -> dict:
     lines = [_format_message(m) for m in msgs]
-    text = f"Discord channel #{channel} ({guild}) — {date}\n" + "\n".join(l for l in lines if l)
+    text = f"Discord channel #{channel} ({guild}) — {date}\n" + "\n".join(line for line in lines if line)
 
     first_message_id = msgs[0].get("id", "") if msgs else ""
     discord_url = (
