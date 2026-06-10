@@ -43,6 +43,11 @@ _AUTHORITATIVE_FILE_IDS = {
     "17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww",  # Progsu Org Structure
     "1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc",  # Roles and Responsibilities 2025
     "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",  # Operations Meeting Notes
+    # Aggregate summaries — pre-synthesized data for the three demo queries
+    "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",  # Combined Attendance Fall25/Spring26
+    "1vkXd1xD-Q8tWhYFLhsTUQkV9i6xIsMNskXxFaGRJYwI",  # Hacklanta Judge Scoring + Outcomes
+    "1vses3E-EY6PRlW5NdSTDBtXUkUPvSXLlOXviVTyhooI",  # Hacklanta Email/SMS Campaign
+    "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",  # Involvement Fair Signups Fall25
 }
 _AUTHORITY_BOOST = 1.5
 
