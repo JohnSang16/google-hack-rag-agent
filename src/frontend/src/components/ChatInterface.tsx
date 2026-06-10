@@ -94,6 +94,7 @@ export default function ChatInterface() {
         {
           role: 'agent',
           content: data.answer,
+          summary: data.summary,
           mode: data.mode,
           citations: data.citations,
           created_doc_url: data.created_doc_url,

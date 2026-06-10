@@ -78,6 +78,7 @@ class Citation(BaseModel):
 class ChatResponse(BaseModel):
     mode: str
     answer: str
+    summary: Optional[str] = None
     citations: list[Citation]
     created_doc_url: Optional[str] = None
 
@@ -116,6 +117,7 @@ async def chat(request: ChatRequest):
         response = ChatResponse(
             mode=result["mode"],
             answer=result["answer"],
+            summary=result.get("summary"),
             citations=[Citation(**c) for c in result["citations"]],
             created_doc_url=result.get("created_doc_url"),
         )

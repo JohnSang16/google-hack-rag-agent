@@ -160,9 +160,24 @@ export default function MessageBubble({ message }: Props) {
         <CopyButton text={message.content} />
       </div>
       <div className="bubble__body bubble__body--agent">
-        {renderContent(message.content)}
+        {message.mode === 'PLAN' && message.created_doc_url ? (
+          <>
+            {renderContent(message.summary ?? message.content)}
+            <a
+              className="doc-link doc-link--inline"
+              href={message.created_doc_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="doc-link__icon">📄</span>
+              Open full planning brief in Google Drive
+            </a>
+          </>
+        ) : (
+          renderContent(message.content)
+        )}
       </div>
-      {message.created_doc_url && (
+      {message.mode === 'PLAN' && message.created_doc_url && (
         <a
           className="doc-link"
           href={message.created_doc_url}

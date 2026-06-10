@@ -344,6 +344,14 @@ body { margin: 0; background: var(--bg-page); }
 .doc-link:hover { background: #dcfce7; }
 .doc-link__icon { font-size: 15px; }
 
+.doc-link--inline {
+  display: flex;
+  margin-top: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+}
+
 /* ── Citations ── */
 .citations { margin-top: 10px; }
 

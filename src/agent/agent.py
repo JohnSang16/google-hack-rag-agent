@@ -35,7 +35,7 @@ Response rules — apply to every answer:
 Mode-specific output:
 - RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved — make the pain point feel real before explaining how it was addressed.
 - ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table of the key data points. Close with a 2-3 sentence narrative on what it means for the org.
-- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience.
+- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience. Also write a 2-3 sentence `summary` field describing what the brief covers and what the key focus areas are — this is shown in the chat UI before the user opens the full doc.
 
 {history_section}Retrieved context:
 {context}
@@ -45,6 +45,7 @@ User query: {query}
 Output ONLY valid JSON with this exact structure (no markdown code fences):
 {{
   "answer": "<your complete response in markdown>",
+  "summary": "<2-3 sentence overview of the brief for chat display — only present when mode is PLAN, otherwise omit>",
   "citations": [
     {{
       "title": "<file_title from source>",
@@ -94,7 +95,7 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def _parse_response(raw: str) -> tuple[str, list[dict]]:
+def _parse_response(raw: str) -> tuple[str, list[dict], str | None]:
     """Parse Gemini JSON response. Returns (answer, citations)."""
     text = raw.strip()
     # Strip markdown fences
@@ -107,7 +108,7 @@ def _parse_response(raw: str) -> tuple[str, list[dict]]:
     # First try clean parse
     try:
         data = json.loads(text)
-        return data.get("answer", raw), data.get("citations", [])
+        return data.get("answer", raw), data.get("citations", []), data.get("summary")
     except json.JSONDecodeError:
         pass
 
@@ -130,10 +131,10 @@ def _parse_response(raw: str) -> tuple[str, list[dict]]:
                 pass
 
         logger.warning("Recovered from malformed JSON: answer=%d chars, citations=%d", len(answer), len(citations))
-        return answer, citations
+        return answer, citations, None
     except Exception as e:
         logger.warning("Failed to parse JSON response, using raw text: %s", e)
-        return raw, []
+        return raw, [], None
 
 
 def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
@@ -382,11 +383,12 @@ async def run(
                 max_output_tokens=max_tokens,
             ),
         )
-        answer, citations = _parse_response(response.text)
+        answer, citations, summary = _parse_response(response.text)
     except Exception as e:
         logger.error("Answer generation failed: %s", e)
         answer = "An error occurred while generating a response."
         citations = []
+        summary = None
 
     citations = _enrich_citations(citations, chunks)
 
@@ -406,6 +408,7 @@ async def run(
     return {
         "mode": mode,
         "answer": answer,
+        "summary": summary,
         "citations": citations,
         "created_doc_url": created_doc_url,
     }

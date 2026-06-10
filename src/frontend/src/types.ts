@@ -18,7 +18,8 @@ export interface Citation {
 export interface AgentMessage {
   role: 'agent';
   content: string;
-  mode: 'RECALL' | 'ANALYZE' | 'PLAN';
+  summary?: string;
+  mode: 'RECALL' | 'ANALYZE' | 'PLAN' | 'CHAT';
   citations: Citation[];
   created_doc_url?: string;
 }
@@ -36,8 +37,9 @@ export interface ErrorMessage {
 export type Message = UserMessage | AgentMessage | ErrorMessage;
 
 export interface ChatResponse {
-  mode: 'RECALL' | 'ANALYZE' | 'PLAN';
+  mode: 'RECALL' | 'ANALYZE' | 'PLAN' | 'CHAT';
   answer: string;
+  summary?: string;
   citations: Citation[];
   created_doc_url?: string;
 }
