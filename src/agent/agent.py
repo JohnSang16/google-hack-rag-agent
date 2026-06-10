@@ -263,6 +263,42 @@ _ANALYZE_PLAN_KEYWORDS = {
     "analyze", "analysis", "attendance", "metrics", "semester", "fall", "spring",
 }
 
+# Fields the Atlas vector index accepts as pre-filters (matches metadata.* paths in vector_index)
+_VECTOR_FILTER_KEYS = frozenset({"event_name", "semester", "doc_type", "team", "source_type", "date"})
+
+# Maps query keywords → event_name values stored in metadata
+_EVENT_KEYWORD_MAP = {
+    "hacklanta": "hacklanta",
+    "hack atlanta": "hacklanta",
+    "claude workshop": "claude_workshop",
+    "hackjam": "hackjam",
+    "gitpaid": "gitpaid",
+    "shipathon": "shipathon",
+}
+
+
+def _extract_event_filter(query: str) -> dict:
+    """Return {"event_name": <value>} if a known event is mentioned, else {}."""
+    q = query.lower()
+    for keyword, event_name in _EVENT_KEYWORD_MAP.items():
+        if keyword in q:
+            return {"event_name": event_name}
+    return {}
+
+
+def _build_retrieval_filters(query: str, request_filters: Optional[dict]) -> Optional[dict]:
+    """
+    Compose vector search filters from the query + validated request fields.
+    Strips non-vector fields like gmail_draft_id that would silently kill results.
+    """
+    result: dict = {}
+    result.update(_extract_event_filter(query))
+    if request_filters:
+        for k, v in request_filters.items():
+            if k in _VECTOR_FILTER_KEYS and v is not None:
+                result[k] = v
+    return result if result else None
+
 
 def _estimate_top_k(query: str) -> int:
     """Return top_k=10 for complex/analytical queries, 5 for simple recall."""
@@ -383,11 +419,17 @@ async def run(
     # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(query)
+    retrieval_filters = _build_retrieval_filters(query, filters)
     mode, chunks = await asyncio.gather(
         asyncio.to_thread(classify_mode, query, client),
-        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
+        retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
     )
-    logger.info("Agent mode: %s", mode)
+    logger.info("Agent mode: %s | retrieval_filters: %s", mode, retrieval_filters)
+
+    # Fallback: if event-filtered retrieval returned nothing, retry without filter
+    if not chunks and retrieval_filters:
+        logger.info("Event-filtered retrieval returned 0 chunks; retrying without filter")
+        chunks = await retrieve_context(retrieval_query, filters=None, top_k=top_k, gemini_client=client)
 
     # Handle rare case where Gemini classifies as CHAT despite passing regex
     if mode == "CHAT":
@@ -521,10 +563,16 @@ async def run_stream(
     # Parallel: classify mode + retrieve
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(query)
+    retrieval_filters = _build_retrieval_filters(query, filters)
     mode, chunks = await asyncio.gather(
         asyncio.to_thread(classify_mode, query, client),
-        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
+        retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
     )
+
+    # Fallback: if event-filtered retrieval returned nothing, retry without filter
+    if not chunks and retrieval_filters:
+        logger.info("Event-filtered retrieval returned 0 chunks; retrying without filter")
+        chunks = await retrieve_context(retrieval_query, filters=None, top_k=top_k, gemini_client=client)
 
     if mode == "CHAT":
         yield {"type": "mode", "mode": "CHAT"}
