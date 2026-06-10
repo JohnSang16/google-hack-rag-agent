@@ -418,10 +418,10 @@ async def run(
 
     # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
-    top_k = _estimate_top_k(query)
-    retrieval_filters = _build_retrieval_filters(query, filters)
+    top_k = _estimate_top_k(retrieval_query)
+    retrieval_filters = _build_retrieval_filters(retrieval_query, filters)
     mode, chunks = await asyncio.gather(
-        asyncio.to_thread(classify_mode, query, client),
+        asyncio.to_thread(classify_mode, retrieval_query, client),
         retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
     )
     logger.info("Agent mode: %s | retrieval_filters: %s", mode, retrieval_filters)
@@ -562,10 +562,10 @@ async def run_stream(
 
     # Parallel: classify mode + retrieve
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
-    top_k = _estimate_top_k(query)
-    retrieval_filters = _build_retrieval_filters(query, filters)
+    top_k = _estimate_top_k(retrieval_query)
+    retrieval_filters = _build_retrieval_filters(retrieval_query, filters)
     mode, chunks = await asyncio.gather(
-        asyncio.to_thread(classify_mode, query, client),
+        asyncio.to_thread(classify_mode, retrieval_query, client),
         retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
     )
 
