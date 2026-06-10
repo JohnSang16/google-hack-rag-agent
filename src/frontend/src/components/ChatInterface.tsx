@@ -54,16 +54,25 @@ export default function ChatInterface() {
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  function handleStop() {
+    abortControllerRef.current?.abort();
+    setLoading(false);
+  }
 
   async function handleSendMessage(query: string, _model: string) {
     if (!query.trim() || loading) return;
 
     setMessages((prev) => [...prev, { role: 'user', content: query }]);
     setLoading(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const history: HistoryItem[] = messages
@@ -76,7 +85,11 @@ export default function ChatInterface() {
             : (m as { content: string }).content,
         }));
 
-      const { data } = await axios.post<ChatResponse>(`${API_BASE}/chat`, { query, history });
+      const { data } = await axios.post<ChatResponse>(
+        `${API_BASE}/chat`,
+        { query, history },
+        { signal: controller.signal },
+      );
       setMessages((prev) => [
         ...prev,
         {
@@ -89,6 +102,7 @@ export default function ChatInterface() {
         },
       ]);
     } catch (err: unknown) {
+      if (axios.isCancel(err)) return;
       const msg =
         axios.isAxiosError(err) && err.response?.data?.detail
           ? err.response.data.detail
@@ -105,6 +119,7 @@ export default function ChatInterface() {
     <div className="w-full max-w-2xl mx-auto">
       <ClaudeChatInput
         onSendMessage={handleSendMessage}
+        onStop={handleStop}
         loading={loading}
         inputValue={inputValue}
         onInputValueConsumed={() => setInputValue('')}
@@ -119,7 +134,6 @@ export default function ChatInterface() {
             style={{ color: s.color, background: 'transparent', borderColor: s.color + '55' }}
           >
             <span className="font-bold tracking-wide">{s.label}</span>
-            <span className="hidden sm:inline font-normal opacity-60">{s.query}</span>
           </button>
         ))}
       </div>

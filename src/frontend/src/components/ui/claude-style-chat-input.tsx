@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Plus, ChevronDown, ArrowUp, X, FileText, Loader2, Archive } from "lucide-react";
+import { Plus, ChevronDown, ArrowUp, X, FileText, Loader2, Archive, Square } from "lucide-react";
 
 /* --- TYPES --- */
 export interface AttachedFile {
@@ -18,6 +18,7 @@ export interface ChatInputModel {
 
 export interface ChatInputProps {
   onSendMessage: (message: string, model: string) => void;
+  onStop?: () => void;
   loading?: boolean;
   inputValue?: string;
   onInputValueConsumed?: () => void;
@@ -130,6 +131,7 @@ const ModelSelector: React.FC<{
 /* --- MAIN COMPONENT --- */
 export const ClaudeChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
+  onStop,
   loading = false,
   inputValue,
   onInputValueConsumed,
@@ -277,16 +279,21 @@ export const ClaudeChatInput: React.FC<ChatInputProps> = ({
                 <ModelSelector models={models} selectedModel={selectedModel} onSelect={setSelectedModel} />
               </div>
               <button
-                onClick={handleSend}
-                disabled={!hasContent || loading}
-                className={`inline-flex items-center justify-center shrink-0 h-8 w-8 rounded-xl transition-colors active:scale-95
-                  ${hasContent && !loading
+                onClick={loading ? onStop : handleSend}
+                disabled={!loading && !hasContent}
+                className={`inline-flex items-center justify-center shrink-0 h-8 w-8 rounded-xl transition-all active:scale-95
+                  ${loading
                     ? "bg-accent text-white hover:bg-accent-hover shadow-md"
-                    : "bg-accent/30 text-white/60 cursor-default"}`}
+                    : hasContent
+                      ? "bg-accent text-white hover:bg-accent-hover shadow-md"
+                      : "bg-accent/30 text-white/60 cursor-default"}`}
                 type="button"
-                aria-label="Send"
+                aria-label={loading ? "Stop" : "Send"}
               >
-                <ArrowUp className="w-4 h-4" />
+                {loading
+                  ? <Square className="w-3 h-3" fill="currentColor" />
+                  : <ArrowUp className="w-4 h-4" />
+                }
               </button>
             </div>
           </div>
