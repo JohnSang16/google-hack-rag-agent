@@ -502,7 +502,7 @@ async def run_stream(
         full = ""
         yield {"type": "mode", "mode": "CHAT"}
         try:
-            async for chunk in client.aio.models.generate_content_stream(
+            async for chunk in await client.aio.models.generate_content_stream(
                 model="gemini-2.5-flash",
                 contents=_CHAT_PROMPT.format(query=query),
                 config=genai.types.GenerateContentConfig(temperature=0.7, max_output_tokens=512),
@@ -558,7 +558,7 @@ async def run_stream(
     full_answer = ""
     max_tokens = 8192 if mode == "PLAN" else 2048
     try:
-        async for chunk in client.aio.models.generate_content_stream(
+        async for chunk in await client.aio.models.generate_content_stream(
             model="gemini-2.5-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(temperature=0.2, max_output_tokens=max_tokens),
