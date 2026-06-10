@@ -65,7 +65,7 @@ export default function ChatInterface() {
     setLoading(false);
   }
 
-  async function handleSendMessage(query: string, _model: string) {
+  async function handleSendMessage(query: string, _model: string) { // eslint-disable-line @typescript-eslint/no-unused-vars
     if (!query.trim() || loading) return;
 
     setMessages((prev) => [...prev, { role: 'user', content: query }]);

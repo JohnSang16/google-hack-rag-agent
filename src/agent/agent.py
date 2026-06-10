@@ -8,7 +8,7 @@ from typing import Optional
 from google import genai
 from dotenv import load_dotenv
 
-from src.agent.mode_classifier import classify_mode
+from src.agent.mode_classifier import classify_mode, _is_chat as _is_chat_query
 from src.agent.tools.retrieve import retrieve_context, format_context_for_prompt
 from src.agent.tools.create_doc import create_google_doc
 
@@ -321,12 +321,9 @@ async def run(
             "created_doc_url": None,
         }
 
-    # 1. Classify mode first — determines whether we need retrieval at all
-    mode = await asyncio.to_thread(classify_mode, query, client)
-    logger.info("Agent mode: %s", mode)
-
-    # CHAT mode: skip retrieval entirely, respond conversationally
-    if mode == "CHAT":
+    # 1. Fast regex CHAT pre-check (no API call) — avoids wasting retrieval time
+    if _is_chat_query(query):
+        logger.info("CHAT mode (regex pre-check): %s...", query[:60])
         try:
             response = await asyncio.to_thread(
                 client.models.generate_content,
@@ -343,10 +340,18 @@ async def run(
             answer = "Try asking: \"What were the key logistics challenges at Hacklanta?\", \"How has our attendance grown?\", or \"Draft a planning brief for our next hackathon.\""
         return {"mode": "CHAT", "answer": answer, "citations": [], "created_doc_url": None}
 
-    # 2+3. Rewrite retrieval query and retrieve
+    # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(query)
-    chunks = await retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client)
+    mode, chunks = await asyncio.gather(
+        asyncio.to_thread(classify_mode, query, client),
+        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
+    )
+    logger.info("Agent mode: %s", mode)
+
+    # Handle rare case where Gemini classifies as CHAT despite passing regex
+    if mode == "CHAT":
+        return {"mode": "CHAT", "answer": "Ask me about Hacklanta, our attendance growth, or have me draft a planning doc.", "citations": [], "created_doc_url": None}
 
     # Confidence gate: if best chunk score is too low, don't hallucinate
     _LOW_CONFIDENCE_THRESHOLD = 5
@@ -392,8 +397,8 @@ async def run(
 
     citations = _enrich_citations(citations, chunks)
 
-    # 5. Grounding check: verify answer doesn't contain claims outside the context
-    if chunks and answer and "error" not in answer.lower():
+    # 5. Grounding check: only on PLAN mode (too expensive to run on every query)
+    if mode == "PLAN" and chunks and answer and "error" not in answer.lower():
         answer = await _check_grounding(query, answer, format_context_for_prompt(chunks), client)
 
     # 6. PLAN mode: create Google Doc

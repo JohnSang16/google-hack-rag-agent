@@ -149,13 +149,16 @@ export const ClaudeChatInput: React.FC<ChatInputProps> = ({
   ];
 
   // Sync external inputValue (e.g. from suggestion chips)
+  // setTimeout breaks synchronous setState-in-effect cascade per React rules
   useEffect(() => {
     if (inputValue !== undefined && inputValue !== "") {
-      setMessage(inputValue);
-      textareaRef.current?.focus();
+      setTimeout(() => {
+        setMessage(inputValue);
+        textareaRef.current?.focus();
+      }, 0);
       onInputValueConsumed?.();
     }
-  }, [inputValue]);
+  }, [inputValue, onInputValueConsumed]);
 
   // Auto-resize textarea
   useEffect(() => {
