@@ -30,6 +30,22 @@ MIN_SCORE = 6
 MIN_RESULTS = 2
 MAX_CHUNK_CHARS = 800
 
+# Authoritative sources: one source of truth per topic area.
+# Chunks from these files get a +1.5 score boost after reranking.
+_AUTHORITATIVE_FILE_IDS = {
+    "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",  # FAQs - Hacklanta
+    "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",  # Hacklanta Master Doc
+    "1ik1VanYAqzWWDnZC-Nu5mwfK78tmrtPP4TwEqZO3qrk",  # Hacklanta Run of Show
+    "1aS9sc-Vq7LEZTJblleow4sRGTpHPRaU_AM2ihBHbqD4",  # Hacklanta Winners and End Metrics
+    "1ttOfvbPcSPQXV19qH3Pw1H9H-BX9p01rHYo_gdcT2k0",  # post hacklanta growth stuff
+    "1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs",  # Growth Master Doc
+    "1G3sGarC2J31ihYH_QqCwB4Q0Dcwr3TYfwuGjVz4DSlQ",  # FINANCE: 2025-2026 Bookkeeping
+    "17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww",  # Progsu Org Structure
+    "1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc",  # Roles and Responsibilities 2025
+    "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",  # Operations Meeting Notes
+}
+_AUTHORITY_BOOST = 1.5
+
 
 def _get_client() -> genai.Client:
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -89,7 +105,12 @@ def rerank(query: str, chunks: list[dict], client: genai.Client = None) -> list[
 
     scores = _batch_score(query, chunks, client)
 
-    scored = [{**chunk, "relevance_score": score} for chunk, score in zip(chunks, scores)]
+    scored = []
+    for chunk, score in zip(chunks, scores):
+        file_id = chunk.get("metadata", {}).get("file_id", "")
+        boost = _AUTHORITY_BOOST if file_id in _AUTHORITATIVE_FILE_IDS else 0
+        final_score = min(score + boost, 10)
+        scored.append({**chunk, "relevance_score": final_score})
     scored.sort(key=lambda c: c["relevance_score"], reverse=True)
 
     for c in scored:
