@@ -254,6 +254,49 @@ def _is_meaningful_query(query: str) -> bool:
     return True
 
 
+_GROUNDING_PROMPT = """You are a fact-checker. Given a retrieved context and a generated answer, identify any specific factual claims in the answer that are NOT supported by the context.
+
+Context:
+{context}
+
+Answer to check:
+{answer}
+
+Respond with JSON only:
+{{
+  "grounded": true | false,
+  "unsupported_claims": ["<claim1>", "<claim2>"]
+}}
+
+"grounded" is true if every specific factual claim in the answer can be traced to the context. "unsupported_claims" lists any sentences or phrases that cannot."""
+
+_GROUNDING_DISCLAIMER = "\n\n*Note: some details in this response could not be fully verified against the source documents. Treat with caution.*"
+
+
+async def _check_grounding(query: str, answer: str, context: str, client: genai.Client) -> str:
+    """Run a fast grounding check. Appends a disclaimer if unsupported claims are found."""
+    prompt = _GROUNDING_PROMPT.format(context=context[:3000], answer=answer[:2000])
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.0,
+                max_output_tokens=256,
+            ),
+        )
+        data = json.loads(response.text.strip())
+        if not data.get("grounded", True):
+            claims = data.get("unsupported_claims", [])
+            logger.warning("Grounding check failed — unsupported claims: %s", claims)
+            return answer + _GROUNDING_DISCLAIMER
+    except Exception as e:
+        logger.warning("Grounding check skipped: %s", e)
+    return answer
+
+
 async def run(
     query: str,
     filters: Optional[dict] = None,
@@ -345,7 +388,11 @@ async def run(
 
     citations = _enrich_citations(citations, chunks)
 
-    # 4. PLAN mode: create Google Doc
+    # 5. Grounding check: verify answer doesn't contain claims outside the context
+    if chunks and answer and "error" not in answer.lower():
+        answer = await _check_grounding(query, answer, format_context_for_prompt(chunks), client)
+
+    # 6. PLAN mode: create Google Doc
     created_doc_url = None
     if mode == "PLAN" and answer and "error" not in answer.lower():
         try:
