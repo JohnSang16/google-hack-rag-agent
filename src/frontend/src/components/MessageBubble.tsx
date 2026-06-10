@@ -28,7 +28,8 @@ function parseTableBlock(lines: string[]) {
 }
 
 function renderContent(text: string) {
-  const blocks = text.split(/\n\n+/);
+  const normalized = text.replace(/\\n/g, '\n');
+  const blocks = normalized.split(/\n\n+/);
   return blocks.map((block, i) => {
     const lines = block.split('\n');
 

@@ -32,7 +32,11 @@ function TypingIndicator() {
     const fade = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+        setIndex((prev) => {
+          let next;
+          do { next = Math.floor(Math.random() * LOADING_MESSAGES.length); } while (next === prev);
+          return next;
+        });
         setVisible(true);
       }, 300);
     }, 2000);
@@ -128,11 +132,22 @@ export default function ChatInterface() {
         {messages.length === 0 && (
           <div className="chat__empty">
             <p>Start by asking a question. Try:</p>
-            <ul>
-              <li>"What were the key logistics challenges at Hacklanta?"</li>
-              <li>"How has our event attendance grown over time?"</li>
-              <li>"Draft a planning brief for our next major hackathon."</li>
-            </ul>
+            <div className="chat__suggestions">
+              {[
+                'What were the key logistics challenges at Hacklanta?',
+                'How has our event attendance grown over time?',
+                'Draft a planning brief for our next major hackathon.',
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  className="chat__suggestion"
+                  onClick={() => setInput(prompt)}
+                  disabled={loading}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {messages.map((msg, i) => (

@@ -108,6 +108,29 @@ body { margin: 0; background: var(--bg-page); }
   cursor: default;
 }
 
+.chat__suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__suggestion {
+  font-size: 13px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chat__suggestion:hover {
+  background: var(--bg-agent);
+  border-color: #93c5fd;
+}
+
 /* ── Footer ── */
 .chat__footer {
   border-top: 1px solid var(--border);
