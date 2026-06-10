@@ -197,6 +197,46 @@ def _build_history_section(history: list[dict]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+_ANALYZE_PLAN_KEYWORDS = {
+    "trend", "trends", "growth", "compare", "comparison", "over time",
+    "how has", "how have", "draft", "plan", "planning", "brief", "proposal",
+    "analyze", "analysis", "attendance", "metrics", "semester", "fall", "spring",
+}
+
+
+def _estimate_top_k(query: str) -> int:
+    """Return top_k=10 for complex/analytical queries, 5 for simple recall."""
+    q = query.lower()
+    if any(kw in q for kw in _ANALYZE_PLAN_KEYWORDS):
+        return 10
+    if len(query.split()) >= 12:
+        return 10
+    return 5
+
+
+_CLARIFICATION_ANSWER = (
+    "That's not enough for me to search the org's records. "
+    "Try asking about a specific event, meeting, or decision.\n\n"
+    "**Examples:**\n"
+    "- \"What were the key challenges at Hacklanta?\"\n"
+    "- \"How has our event attendance grown from Fall 2025 to Spring 2026?\"\n"
+    "- \"Draft a planning brief for our next major hackathon.\""
+)
+
+
+def _is_meaningful_query(query: str) -> bool:
+    """Return False if the query is too short, symbol-only, or lacks enough alphanumeric content."""
+    stripped = query.strip()
+    # Need at least 5 alphanumeric characters total
+    if sum(1 for c in stripped if c.isalnum()) < 5:
+        return False
+    # Need at least 2 words that contain alphanumeric characters
+    words = [w for w in stripped.split() if any(c.isalnum() for c in w)]
+    if len(words) < 2:
+        return False
+    return True
+
+
 async def run(
     query: str,
     filters: Optional[dict] = None,
@@ -210,11 +250,20 @@ async def run(
     if client is None:
         client = _get_client()
 
+    if not _is_meaningful_query(query):
+        return {
+            "mode": "RECALL",
+            "answer": _CLARIFICATION_ANSWER,
+            "citations": [],
+            "created_doc_url": None,
+        }
+
     # 1+2+3. Classify mode, rewrite retrieval query, and retrieve — all in parallel
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
+    top_k = _estimate_top_k(query)
     mode, chunks = await asyncio.gather(
         asyncio.to_thread(classify_mode, query, client),
-        retrieve_context(retrieval_query, filters=filters, gemini_client=client),
+        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
     )
     logger.info("Agent mode: %s", mode)
 

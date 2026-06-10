@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 async def retrieve_context(
     query: str,
     filters: Optional[dict] = None,
+    top_k: int = 5,
     gemini_client: genai.Client = None,
 ) -> list[dict]:
     """
@@ -18,7 +19,7 @@ async def retrieve_context(
     Returns list of dicts with text, metadata, score, relevance_score.
     """
     try:
-        results = await _retrieve(query, filters=filters, gemini_client=gemini_client)
+        results = await _retrieve(query, filters=filters, top_k=top_k, gemini_client=gemini_client)
         logger.info("retrieve_context: %d chunks returned for '%s...'", len(results), query[:50])
         return results
     except Exception as e:

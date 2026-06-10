@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 from typing import Optional
@@ -8,6 +10,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.agent import agent as _agent
+
+_response_cache: dict[str, dict] = {}
+_CACHE_MAX_SIZE = 100
+
+
+def _cache_key(query: str, filters: Optional[dict]) -> str:
+    payload = query.strip().lower() + json.dumps(filters or {}, sort_keys=True)
+    return hashlib.md5(payload.encode()).hexdigest()
+
+
+def _cache_get(key: str) -> Optional[dict]:
+    return _response_cache.get(key)
+
+
+def _cache_set(key: str, value: dict) -> None:
+    if len(_response_cache) >= _CACHE_MAX_SIZE:
+        _response_cache.pop(next(iter(_response_cache)))
+    _response_cache[key] = value
 
 load_dotenv()
 
@@ -74,18 +94,26 @@ async def chat(request: ChatRequest):
 
     logger.info("POST /chat: %s", request.query[:80])
 
+    cache_key = _cache_key(request.query, request.filters)
+    cached = _cache_get(cache_key)
+    if cached:
+        logger.info("Cache hit for query: %s", request.query[:60])
+        return ChatResponse(**cached)
+
     try:
         result = await _agent.run(
             query=request.query,
             filters=request.filters or None,
             history=[h.model_dump() for h in request.history] if request.history else None,
         )
-        return ChatResponse(
+        response = ChatResponse(
             mode=result["mode"],
             answer=result["answer"],
             citations=[Citation(**c) for c in result["citations"]],
             created_doc_url=result.get("created_doc_url"),
         )
+        _cache_set(cache_key, response.model_dump())
+        return response
     except Exception as e:
         logger.error("Agent error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
