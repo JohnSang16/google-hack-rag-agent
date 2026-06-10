@@ -162,7 +162,6 @@ export default function MessageBubble({ message, streaming = false }: Props) {
         <span className={`mode-badge mode-badge--${message.mode.toLowerCase()}`}>
           {MODE_LABELS[message.mode]}
         </span>
-        {!streaming && <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />}
       </div>
       <div className="bubble__body bubble__body--agent" ref={bodyRef}>
         {message.mode === 'PLAN'
@@ -194,9 +193,10 @@ export default function MessageBubble({ message, streaming = false }: Props) {
           )}
         </div>
       )}
-      {message.citations.length > 0 && (
-        <CitationCard citations={message.citations} />
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+        {message.citations.length > 0 && <CitationCard citations={message.citations} />}
+        {!streaming && <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />}
+      </div>
     </div>
   );
 }
