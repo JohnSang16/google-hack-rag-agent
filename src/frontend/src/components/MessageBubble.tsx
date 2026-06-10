@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { Message } from '../types';
 import CitationCard from './CitationCard';
 
@@ -120,10 +120,10 @@ interface Props {
   streaming?: boolean;
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ getTextFn }: { getTextFn: () => string }) {
   const [copied, setCopied] = useState(false);
   function handleCopy() {
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(getTextFn()).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -136,6 +136,8 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function MessageBubble({ message, streaming = false }: Props) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+
   if (message.role === 'user') {
     return (
       <div className="bubble bubble--user">
@@ -158,9 +160,9 @@ export default function MessageBubble({ message, streaming = false }: Props) {
         <span className={`mode-badge mode-badge--${message.mode.toLowerCase()}`}>
           {MODE_LABELS[message.mode]}
         </span>
-        {!streaming && <CopyButton text={message.content} />}
+        {!streaming && <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />}
       </div>
-      <div className="bubble__body bubble__body--agent">
+      <div className="bubble__body bubble__body--agent" ref={bodyRef}>
         {message.mode === 'PLAN' && message.created_doc_url ? (
           <>
             {renderContent(message.summary ?? message.content)}
