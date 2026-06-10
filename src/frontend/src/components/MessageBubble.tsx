@@ -13,7 +13,9 @@ function renderInline(text: string): (ReactNode | string)[] {
 }
 
 function isTableSeparator(line: string): boolean {
-  return /^\|[\s\-:|]+\|$/.test(line.trim());
+  const t = line.trim();
+  // A separator row has pipes at both ends and zero alphanumeric chars
+  return t.startsWith('|') && t.endsWith('|') && !/[a-zA-Z0-9]/.test(t);
 }
 
 function parseTableBlock(lines: string[]) {
@@ -163,22 +165,10 @@ export default function MessageBubble({ message, streaming = false }: Props) {
         {!streaming && <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />}
       </div>
       <div className="bubble__body bubble__body--agent" ref={bodyRef}>
-        {message.mode === 'PLAN' && message.created_doc_url ? (
-          <>
-            {renderContent(message.summary ?? message.content)}
-            <a
-              className="doc-link doc-link--inline"
-              href={message.created_doc_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <span className="doc-link__icon">📄</span>
-              Open full planning brief in Google Drive
-            </a>
-          </>
-        ) : (
-          renderContent(message.content)
-        )}
+        {message.mode === 'PLAN'
+          ? renderContent(message.summary ?? message.content)
+          : renderContent(message.content)
+        }
       </div>
       {message.mode === 'PLAN' && (message.created_doc_url || message.calendar_event_url || message.gmail_draft_url) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
