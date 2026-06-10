@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Message } from '../types';
 import CitationCard from './CitationCard';
 
@@ -119,6 +119,21 @@ interface Props {
   message: Message;
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <button className="copy-btn" onClick={handleCopy} title="Copy to clipboard">
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  );
+}
+
 export default function MessageBubble({ message }: Props) {
   if (message.role === 'user') {
     return (
@@ -142,6 +157,7 @@ export default function MessageBubble({ message }: Props) {
         <span className={`mode-badge mode-badge--${message.mode.toLowerCase()}`}>
           {MODE_LABELS[message.mode]}
         </span>
+        <CopyButton text={message.content} />
       </div>
       <div className="bubble__body bubble__body--agent">
         {renderContent(message.content)}
