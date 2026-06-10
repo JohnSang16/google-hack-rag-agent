@@ -216,7 +216,8 @@ export default function ChatInterface() {
                   (msg as { content: string }).content === '' &&
                   i === messages.length - 1;
                 if (isStreamingPlaceholder) return null;
-                return <MessageBubble key={i} message={msg} />;
+                const isActiveStream = loading && i === messages.length - 1 && msg.role === 'agent';
+                return <MessageBubble key={i} message={msg} streaming={isActiveStream} />;
               })}
               {loading && (messages[messages.length - 1]?.role !== 'agent' || (messages[messages.length - 1] as { content: string }).content === '') && (
                 <TypingIndicator />

@@ -117,6 +117,7 @@ const MODE_LABELS: Record<string, string> = {
 
 interface Props {
   message: Message;
+  streaming?: boolean;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -134,7 +135,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function MessageBubble({ message }: Props) {
+export default function MessageBubble({ message, streaming = false }: Props) {
   if (message.role === 'user') {
     return (
       <div className="bubble bubble--user">
@@ -157,7 +158,7 @@ export default function MessageBubble({ message }: Props) {
         <span className={`mode-badge mode-badge--${message.mode.toLowerCase()}`}>
           {MODE_LABELS[message.mode]}
         </span>
-        <CopyButton text={message.content} />
+        {!streaming && <CopyButton text={message.content} />}
       </div>
       <div className="bubble__body bubble__body--agent">
         {message.mode === 'PLAN' && message.created_doc_url ? (
