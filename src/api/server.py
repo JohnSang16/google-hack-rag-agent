@@ -87,6 +87,13 @@ async def health():
     return {"status": "ok"}
 
 
+@app.post("/cache/clear")
+async def clear_cache():
+    _response_cache.clear()
+    logger.info("Response cache cleared")
+    return {"cleared": True}
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     if not request.query.strip():
