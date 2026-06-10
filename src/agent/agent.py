@@ -94,7 +94,7 @@ Response rules — apply to every answer:
 
 Mode-specific output:
 - RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
-- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a COMPLETE markdown table — include every data point from the context, never leave the table with only headers. Close with a 2-3 sentence narrative.
+- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a COMPLETE markdown table — use ONLY 3-dash separators like |:---|:---|:---| (never long dash sequences). Include every data point from the context. Close with a 2-3 sentence narrative.
 - PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history.
 
 {history_section}Retrieved context:
@@ -126,6 +126,13 @@ Otherwise respond in 1-3 sentences. You operate in three modes: RECALL (what hap
 User: {query}
 
 Respond with plain text only. No JSON, no markdown fences."""
+
+
+def _normalize_table_separators(text: str) -> str:
+    """Collapse long markdown table separator cells to 3 dashes so they don't eat token budget."""
+    def _shorten(m: re.Match) -> str:
+        return re.sub(r':?-{4,}:?', '---', m.group(0))
+    return re.sub(r'^\|[\s:|-]+\|?$', _shorten, text, flags=re.MULTILINE)
 
 
 def _get_client() -> genai.Client:
@@ -621,6 +628,9 @@ async def run_stream(
         logger.error("Answer stream failed: %s", e)
         full_answer = "An error occurred while generating a response."
         yield {"type": "token", "content": full_answer}
+
+    # Normalize any absurdly long table separators Gemini may have generated
+    full_answer = _normalize_table_separators(full_answer)
 
     # Build citations from retrieved chunks directly
     raw = [

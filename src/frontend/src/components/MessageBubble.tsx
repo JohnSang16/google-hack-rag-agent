@@ -15,8 +15,8 @@ function renderInline(text: string): (ReactNode | string)[] {
 
 function isTableSeparator(line: string): boolean {
   const t = line.trim();
-  // A separator row has pipes at both ends and zero alphanumeric chars
-  return t.startsWith('|') && t.endsWith('|') && !/[a-zA-Z0-9]/.test(t);
+  // A separator row starts with | and contains only pipes, dashes, colons, spaces
+  return t.startsWith('|') && !/[a-zA-Z0-9]/.test(t);
 }
 
 function parseTableBlock(lines: string[]) {
@@ -32,7 +32,9 @@ function parseTableBlock(lines: string[]) {
 
 function renderContent(text: string) {
   const normalized = text.replace(/\\n/g, '\n');
-  const blocks = normalized.split(/\n\n+/);
+  // Collapse blank lines between table rows so Gemini-style tables stay as one block
+  const tableFixed = normalized.replace(/(\|[^\n]*)\n\n+(?=\|)/g, '$1\n');
+  const blocks = tableFixed.split(/\n\n+/);
   return blocks.map((block, i) => {
     const lines = block.split('\n');
 
