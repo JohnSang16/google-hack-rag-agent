@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { CopyIcon, CheckIcon } from 'lucide-react';
 import type { Message } from '../types';
 import CitationCard from './CitationCard';
 
@@ -132,7 +133,7 @@ function CopyButton({ getTextFn }: { getTextFn: () => string }) {
   }
   return (
     <button className="copy-btn" onClick={handleCopy} title="Copy to clipboard">
-      {copied ? '✓ Copied' : 'Copy'}
+      {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
     </button>
   );
 }
