@@ -44,9 +44,9 @@ function TypingIndicator() {
 }
 
 const SUGGESTIONS = [
-  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta?', color: '#60a5fa', bg: '#1e3a5f' },
-  { label: 'ANALYZE', query: 'How has our event attendance grown over time?', color: '#a78bfa', bg: '#2e1f5e' },
-  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon.', color: '#4ade80', bg: '#14391f' },
+  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta?', color: '#93c5fd' },
+  { label: 'ANALYZE', query: 'How has our event attendance grown over time?', color: '#c4b5fd' },
+  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon.', color: '#86efac' },
 ];
 
 export default function ChatInterface() {
@@ -115,8 +115,8 @@ export default function ChatInterface() {
             key={s.label}
             onClick={() => setInputValue(s.query)}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:opacity-80 disabled:opacity-40"
-            style={{ color: s.color, background: s.bg + '22', borderColor: s.color + '44' }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:bg-white/5 disabled:opacity-40"
+            style={{ color: s.color, background: 'transparent', borderColor: s.color + '55' }}
           >
             <span className="font-bold tracking-wide">{s.label}</span>
             <span className="hidden sm:inline font-normal opacity-60">{s.query}</span>

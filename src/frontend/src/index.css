@@ -28,8 +28,8 @@
   --text-300: #B4B4B4;
   --text-400: #8A8A88;
   --text-500: #6B6B65;
-  --accent: #D2996E;
-  --accent-hover: #E5AA7F;
+  --accent: #7C3AED;
+  --accent-hover: #6D28D9;
 
   /* Legacy aliases for existing components */
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
