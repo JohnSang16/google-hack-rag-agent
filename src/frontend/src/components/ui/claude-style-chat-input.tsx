@@ -145,7 +145,7 @@ export const ClaudeChatInput: React.FC<ChatInputProps> = ({
 
   const models: ChatInputModel[] = [
     { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Best quality answers" },
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Faster responses" },
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Fast responses" },
   ];
 
   // Sync external inputValue (e.g. from suggestion chips)

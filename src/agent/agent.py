@@ -135,7 +135,7 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def _parse_response(raw: str) -> tuple[str, list[dict], str | None]:
+def _parse_response(raw: str) -> tuple:
     """Parse Gemini JSON response. Returns (answer, citations)."""
     text = raw.strip()
     # Strip markdown fences
@@ -231,7 +231,7 @@ async def _rewrite_query_for_retrieval(query: str, history: list[dict], client: 
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(temperature=0.0, max_output_tokens=80),
         )
@@ -322,7 +322,7 @@ async def _check_grounding(query: str, answer: str, context: str, client: genai.
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -367,7 +367,7 @@ async def run(
         try:
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=_CHAT_PROMPT.format(query=query),
                 config=genai.types.GenerateContentConfig(
                     temperature=0.7,
@@ -503,7 +503,7 @@ async def run_stream(
         yield {"type": "mode", "mode": "CHAT"}
         try:
             async for chunk in client.aio.models.generate_content_stream(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=_CHAT_PROMPT.format(query=query),
                 config=genai.types.GenerateContentConfig(temperature=0.7, max_output_tokens=512),
             ):
@@ -554,12 +554,12 @@ async def run_stream(
     else:
         prompt = _STREAM_NO_CONTEXT_PROMPT.format(query=query)
 
-    # Stream answer with gemini-2.0-flash
+    # Stream answer with gemini-2.5-flash
     full_answer = ""
     max_tokens = 8192 if mode == "PLAN" else 2048
     try:
         async for chunk in client.aio.models.generate_content_stream(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(temperature=0.2, max_output_tokens=max_tokens),
         ):
