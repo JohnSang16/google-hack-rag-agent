@@ -67,6 +67,23 @@ Respond with exactly this JSON:
   "citations": []
 }}"""
 
+_CHAT_PROMPT = """You are the progsu Intelligence Agent, the institutional memory of progsu (ProgClub at Georgia State University).
+
+The user is asking something conversational or about what you can do. Respond naturally and helpfully.
+
+If they ask for example questions or prompts, return exactly this and nothing else:
+Here are three good ones to start with:
+
+- "What were the key logistics challenges at Hacklanta?"
+- "How has our event attendance grown over time?"
+- "Draft a planning brief for our next major hackathon."
+
+Otherwise respond in 1-3 sentences. You operate in three modes: RECALL (what happened), ANALYZE (trends), PLAN (creates a Google Doc).
+
+User: {query}
+
+Respond with plain text only. No JSON, no markdown fences."""
+
 
 def _get_client() -> genai.Client:
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -258,16 +275,34 @@ async def run(
             "created_doc_url": None,
         }
 
-    # 1+2+3. Classify mode, rewrite retrieval query, and retrieve — all in parallel
-    retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
-    top_k = _estimate_top_k(query)
-    mode, chunks = await asyncio.gather(
-        asyncio.to_thread(classify_mode, query, client),
-        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
-    )
+    # 1. Classify mode first — determines whether we need retrieval at all
+    mode = await asyncio.to_thread(classify_mode, query, client)
     logger.info("Agent mode: %s", mode)
 
-    # 3. Generate answer
+    # CHAT mode: skip retrieval entirely, respond conversationally
+    if mode == "CHAT":
+        try:
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.0-flash",
+                contents=_CHAT_PROMPT.format(query=query),
+                config=genai.types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=512,
+                ),
+            )
+            answer = response.text.strip()
+        except Exception as e:
+            logger.error("CHAT response failed: %s", e)
+            answer = "Try asking: \"What were the key logistics challenges at Hacklanta?\", \"How has our attendance grown?\", or \"Draft a planning brief for our next hackathon.\""
+        return {"mode": "CHAT", "answer": answer, "citations": [], "created_doc_url": None}
+
+    # 2+3. Rewrite retrieval query and retrieve
+    retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
+    top_k = _estimate_top_k(query)
+    chunks = await retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client)
+
+    # 4. Generate answer
     history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)

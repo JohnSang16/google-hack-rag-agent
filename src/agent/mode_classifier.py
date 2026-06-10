@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 from google import genai
 from dotenv import load_dotenv
@@ -8,9 +9,33 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_PROMPT = """Classify this query into exactly one of three modes:
+_CHAT_PATTERNS = [
+    r'\b(hi|hello|hey|sup|yo)\b',
+    r'\b(thanks|thank you|thx|ty)\b',
+    r'\bwho are you\b',
+    r'\bwhat (can|do|are) you\b',
+    r'\bhow do(es)? (this|it) work\b',
+    r'\b(give|show|list|tell) me (the )?(example|sample|demo|3|three|those|the)? ?(prompts?|questions?)\b',
+    r'\b(example|demo|sample) (prompts?|questions?)\b',
+    r'\bprompts? (to try|from earlier|again|you mentioned)\b',
+    r'\bi forgot\b',
+    r'\bremind me\b',
+    r'\bwhat (were|are) the (3|three|example|demo|default)\b',
+    r'\bwhat (else )?can i ask\b',
+]
 
-RECALL: The user wants to know what happened, what was decided, or what exists.
+_CHAT_RE = re.compile('|'.join(_CHAT_PATTERNS), re.IGNORECASE)
+
+
+def _is_chat(query: str) -> bool:
+    return bool(_CHAT_RE.search(query))
+
+_PROMPT = """Classify this query into exactly one of four modes:
+
+CHAT: The user is making small talk, asking what the system can do, requesting example questions, saying thanks, or asking something not about org history.
+  Examples: "hello", "what can you do?", "give me example questions", "thanks", "what are the 3 prompts?", "give me the other prompts to try", "who are you?"
+
+RECALL: The user wants to know what happened, what was decided, or what exists in the org's history.
   Examples: "What were the logistics for Hacklanta?", "What sponsors did we have?", "What was decided in the last exec meeting?"
 
 ANALYZE: The user wants trends, comparisons, or synthesis across multiple events/time periods.
@@ -21,9 +46,9 @@ PLAN: The user wants to create something new, draft a document, or plan a future
 
 Query: {query}
 
-Respond with exactly one word: RECALL, ANALYZE, or PLAN"""
+Respond with exactly one word: CHAT, RECALL, ANALYZE, or PLAN"""
 
-VALID_MODES = {"RECALL", "ANALYZE", "PLAN"}
+VALID_MODES = {"CHAT", "RECALL", "ANALYZE", "PLAN"}
 
 
 def _get_client() -> genai.Client:
@@ -34,7 +59,11 @@ def _get_client() -> genai.Client:
 
 
 def classify_mode(query: str, client: genai.Client = None) -> str:
-    """Classify a query as RECALL, ANALYZE, or PLAN. Defaults to RECALL on failure."""
+    """Classify a query as CHAT, RECALL, ANALYZE, or PLAN. Defaults to RECALL on failure."""
+    if _is_chat(query):
+        logger.info("Classified query as CHAT (pattern match): %s...", query[:60])
+        return "CHAT"
+
     if client is None:
         client = _get_client()
 

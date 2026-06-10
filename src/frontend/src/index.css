@@ -287,6 +287,7 @@ body { margin: 0; background: var(--bg-page); }
   border-radius: 20px;
 }
 
+.mode-badge--chat    { background: #f9fafb; color: #6b7280; }
 .mode-badge--recall  { background: #eff6ff; color: var(--recall); }
 .mode-badge--analyze { background: #f5f3ff; color: var(--analyze); }
 .mode-badge--plan    { background: #f0fdf4; color: var(--plan); }

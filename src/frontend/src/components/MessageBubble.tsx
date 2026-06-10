@@ -109,6 +109,7 @@ function renderContent(text: string) {
 }
 
 const MODE_LABELS: Record<string, string> = {
+  CHAT: 'CHAT',
   RECALL: 'RECALL',
   ANALYZE: 'ANALYZE',
   PLAN: 'PLAN',
