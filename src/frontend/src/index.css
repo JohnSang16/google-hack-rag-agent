@@ -146,11 +146,13 @@ body { margin: 0; background: var(--bg-page); }
 .msg__list { list-style-type: disc; margin: 0 0 10px; padding-left: 20px; }
 .msg__list li { margin-bottom: 4px; }
 
-.msg__table-wrap { overflow-x: auto; margin: 0 0 10px; }
+.msg__table-wrap { overflow-x: auto; margin: 0 0 10px; border-radius: 8px; border: 1px solid var(--bg-300); }
 .msg__table { border-collapse: collapse; font-size: 12px; width: 100%; }
-.msg__table th { background: #f3f4f6; font-weight: 600; text-align: left; padding: 6px 10px; border: 1px solid var(--border); color: var(--text-primary); }
-.msg__table td { padding: 5px 10px; border: 1px solid var(--border); color: var(--text-primary); }
-.msg__table tr:nth-child(even) td { background: #fafafa; }
+.msg__table th { background: var(--bg-200); font-weight: 600; text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--bg-300); color: var(--text-200); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.msg__table td { padding: 7px 12px; border-bottom: 1px solid var(--bg-300); color: var(--text-200); }
+.msg__table tr:last-child td { border-bottom: none; }
+.msg__table tr:nth-child(even) td { background: var(--bg-200); }
+.msg__table tr:hover td { background: var(--bg-300); transition: background 0.1s; }
 
 /* ── Google Doc link ── */
 .doc-link {
