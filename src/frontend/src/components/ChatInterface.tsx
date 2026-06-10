@@ -1,33 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import type { ChatResponse, HistoryItem, Message } from '../types';
+import MessageBubble from './MessageBubble';
+import ClaudeChatInput from './ui/claude-style-chat-input';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-import MessageBubble from './MessageBubble';
-import ModeSelector from './ModeSelector';
 
 const LOADING_MESSAGES = [
-  'cooking…',
-  'locking in…',
-  'rizzing up the database…',
-  'try-hard maxxing…',
-  'let him cook…',
-  'super saiyan mode activated…',
-  'no cap searching the archives…',
-  'going feral on the docs…',
-  'sigma retrieval arc…',
-  'glazing the vector index…',
-  'ate and left no crumbs…',
-  'this is so real fr fr…',
-  'we do a little institutional memory…',
-  'on my grind rn…',
+  'cooking…', 'locking in…', 'rizzing up the database…',
+  'try-hard maxxing…', 'let him cook…', 'super saiyan mode activated…',
+  'no cap searching the archives…', 'going feral on the docs…',
+  'sigma retrieval arc…', 'glazing the vector index…',
+  'ate and left no crumbs…', 'this is so real fr fr…',
+  'we do a little institutional memory…', 'on my grind rn…',
   'NPC behavior detected, switching to main character mode…',
 ];
 
 function TypingIndicator() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
-
   useEffect(() => {
     const fade = setInterval(() => {
       setVisible(false);
@@ -42,50 +33,47 @@ function TypingIndicator() {
     }, 2000);
     return () => clearInterval(fade);
   }, []);
-
   return (
-    <div className="bubble bubble--agent bubble--typing">
-      <span
-        className="typing-text"
-        style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}
-      >
+    <div className="bubble bubble--typing">
+      <span className="typing-text" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
         {LOADING_MESSAGES[index]}
       </span>
-      <div className="typing">
-        <span /><span /><span />
-      </div>
+      <div className="typing"><span /><span /><span /></div>
     </div>
   );
 }
 
+const SUGGESTIONS = [
+  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta?', color: '#2563eb', bg: '#eff6ff' },
+  { label: 'ANALYZE', query: 'How has our event attendance grown over time?', color: '#7c3aed', bg: '#f5f3ff' },
+  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon.', color: '#16a34a', bg: '#f0fdf4' },
+];
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inputValue, setInputValue] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const query = input.trim();
-    if (!query || loading) return;
+  async function handleSendMessage(query: string, _model: string) {
+    if (!query.trim() || loading) return;
 
-    setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: query }]);
     setLoading(true);
 
     try {
-      // Build history from last 4 messages (2 back-and-forth turns) before this query
       const history: HistoryItem[] = messages
         .slice(-4)
         .filter((m) => m.role === 'user' || m.role === 'agent')
         .map((m) => ({
           role: m.role as 'user' | 'agent',
-          content: m.role === 'agent' ? (m as { content: string }).content.slice(0, 400) : (m as { content: string }).content,
+          content: m.role === 'agent'
+            ? (m as { content: string }).content.slice(0, 400)
+            : (m as { content: string }).content,
         }));
 
       const { data } = await axios.post<ChatResponse>(`${API_BASE}/chat`, { query, history });
@@ -108,78 +96,71 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, { role: 'error', content: msg }]);
     } finally {
       setLoading(false);
-      textareaRef.current?.focus();
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e as unknown as React.FormEvent);
-    }
-  }
+  const isEmpty = messages.length === 0 && !loading;
 
   return (
-    <div className="chat">
-      <header className="chat__header">
-        <div className="chat__title">
-          <span className="chat__logo">◆</span>
-          progsu Intelligence Agent
-        </div>
-        <p className="chat__subtitle">Ask anything about your org's history, trends, or plans.</p>
-      </header>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-0)', fontFamily: 'var(--sans)' }}>
 
-      <div className="chat__messages">
-        {messages.length === 0 && (
-          <div className="chat__empty">
-            <p>Start by asking a question. Try:</p>
-            <div className="chat__suggestions">
-              {[
-                'What were the key logistics challenges at Hacklanta?',
-                'How has our event attendance grown over time?',
-                'Draft a planning brief for our next major hackathon.',
-              ].map((prompt) => (
-                <button
-                  key={prompt}
-                  className="chat__suggestion"
-                  onClick={() => setInput(prompt)}
-                  disabled={loading}
-                >
-                  {prompt}
-                </button>
+      {/* Message area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          {isEmpty ? (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+              <span className="text-5xl mb-4" style={{ color: 'var(--accent)' }}>◆</span>
+              <h1 className="text-3xl font-light mb-2" style={{ color: 'var(--text-200)' }}>
+                progsu Intelligence Agent
+              </h1>
+              <p className="text-sm" style={{ color: 'var(--text-400)' }}>
+                Your org's institutional memory. Ask anything.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {messages.map((msg, i) => (
+                <MessageBubble key={i} message={msg} />
               ))}
             </div>
-          </div>
-        )}
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
-        ))}
-        {loading && <TypingIndicator />}
-        <div ref={bottomRef} />
+          )}
+          {loading && (
+            <div className="mt-4">
+              <TypingIndicator />
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      <div className="chat__footer">
-        <ModeSelector />
-        <form className="chat__form" onSubmit={handleSubmit}>
-          <textarea
-            ref={textareaRef}
-            className="chat__input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about your org's history, trends, or plans…"
-            rows={1}
-            disabled={loading}
+      {/* Input area */}
+      <div className="flex-shrink-0 pb-6 pt-2" style={{ borderTop: '1px solid var(--bg-300)' }}>
+        <div className="max-w-3xl mx-auto px-4">
+          <ClaudeChatInput
+            onSendMessage={handleSendMessage}
+            loading={loading}
+            inputValue={inputValue}
+            onInputValueConsumed={() => setInputValue('')}
           />
-          <button
-            className="chat__send"
-            type="submit"
-            disabled={!input.trim() || loading}
-          >
-            Send
-          </button>
-        </form>
+
+          {/* Mode suggestion chips */}
+          <div className="flex flex-wrap justify-center gap-2 mt-3">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                onClick={() => setInputValue(s.query)}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:opacity-80 disabled:opacity-40"
+                style={{ color: s.color, background: s.bg, borderColor: s.color + '33' }}
+              >
+                <span className="font-bold tracking-wide">{s.label}</span>
+                <span className="text-[11px] font-normal opacity-75">{s.query}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }
