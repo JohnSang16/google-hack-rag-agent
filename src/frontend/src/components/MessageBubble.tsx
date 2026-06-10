@@ -194,7 +194,7 @@ export default function MessageBubble({ message, streaming = false }: Props) {
           )}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '10px' }}>
         {message.citations.length > 0 && <CitationCard citations={message.citations} />}
         {!streaming && <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />}
       </div>

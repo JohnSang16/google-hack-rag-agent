@@ -222,9 +222,11 @@ async def _rewrite_query_for_retrieval(query: str, history: list[dict], client: 
     if not last_user:
         return query
     prompt = (
-        f"Given this conversation, rewrite the follow-up as a single self-contained search query "
-        f"for a document retrieval system. Focus on the information need — strip meta-questions "
-        f"about sources, methodology, or how the system works. Output only the rewritten query, nothing else.\n\n"
+        f"Given this conversation, rewrite the follow-up as a single self-contained ANALYTICAL "
+        f"search query for a document retrieval system. The query must retrieve factual records — "
+        f"do NOT add words like 'plan', 'strategy', 'improve', 'how to', or any action-oriented "
+        f"language. Strip meta-questions about sources or methodology. "
+        f"Output only the rewritten query, nothing else.\n\n"
         f"Previous message: {last_user}\n"
         f"Follow-up: {query}\n\n"
         f"Rewritten search query:"
