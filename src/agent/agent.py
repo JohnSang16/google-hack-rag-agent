@@ -302,6 +302,19 @@ async def run(
     top_k = _estimate_top_k(query)
     chunks = await retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client)
 
+    # Confidence gate: if best chunk score is too low, don't hallucinate
+    _LOW_CONFIDENCE_THRESHOLD = 5
+    if chunks:
+        best_score = max(c.get("relevance_score", 0) for c in chunks)
+        if best_score < _LOW_CONFIDENCE_THRESHOLD:
+            logger.info("Low confidence retrieval (best score %s), returning humble response", best_score)
+            return {
+                "mode": mode,
+                "answer": "I don't have enough in the org's records to answer that confidently. Try rephrasing, or ask about a specific event, meeting, or decision I might know about.",
+                "citations": [],
+                "created_doc_url": None,
+            }
+
     # 4. Generate answer
     history_section = _build_history_section(history or [])
     if chunks:
