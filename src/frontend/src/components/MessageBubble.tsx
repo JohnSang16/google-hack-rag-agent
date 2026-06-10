@@ -177,16 +177,29 @@ export default function MessageBubble({ message }: Props) {
           renderContent(message.content)
         )}
       </div>
-      {message.mode === 'PLAN' && message.created_doc_url && (
-        <a
-          className="doc-link"
-          href={message.created_doc_url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span className="doc-link__icon">📄</span>
-          View Google Doc
-        </a>
+      {message.mode === 'PLAN' && (message.created_doc_url || message.calendar_event_url || message.gmail_draft_url) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+          {message.created_doc_url && (
+            <a className="doc-link" href={message.created_doc_url} target="_blank" rel="noopener noreferrer">
+              <span className="doc-link__icon">📄</span>
+              Open Planning Brief
+            </a>
+          )}
+          {message.calendar_event_url && (
+            <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer"
+              style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
+              <span className="doc-link__icon">📅</span>
+              View Calendar Event{message.calendar_event_start_date ? ` — ${message.calendar_event_start_date}` : ''}
+            </a>
+          )}
+          {message.gmail_draft_url && (
+            <a className="doc-link" href={message.gmail_draft_url} target="_blank" rel="noopener noreferrer"
+              style={{ background: '#faf5ff', borderColor: '#e9d5ff', color: '#7c3aed' }}>
+              <span className="doc-link__icon">✉️</span>
+              Review Email Draft
+            </a>
+          )}
+        </div>
       )}
       {message.citations.length > 0 && (
         <CitationCard citations={message.citations} />

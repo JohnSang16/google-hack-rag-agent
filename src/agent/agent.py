@@ -11,6 +11,13 @@ from dotenv import load_dotenv
 from src.agent.mode_classifier import classify_mode, _is_chat as _is_chat_query
 from src.agent.tools.retrieve import retrieve_context, format_context_for_prompt
 from src.agent.tools.create_doc import create_google_doc
+from src.agent.tools.create_calendar_event import create_calendar_event
+from src.agent.tools.send_gmail import (
+    create_gmail_draft,
+    send_gmail_draft,
+    build_plan_email_body,
+    is_send_email_intent,
+)
 
 load_dotenv()
 
@@ -476,6 +483,20 @@ async def run_stream(
         yield {"type": "done", "mode": "RECALL", "answer": _CLARIFICATION_ANSWER, "citations": [], "created_doc_url": None, "summary": None}
         return
 
+    # Send email intent: user is approving a draft created in a prior PLAN response
+    if is_send_email_intent(query) and filters and filters.get("gmail_draft_id"):
+        draft_id = filters["gmail_draft_id"]
+        yield {"type": "mode", "mode": "CHAT"}
+        try:
+            await asyncio.to_thread(send_gmail_draft, draft_id)
+            msg = "Email sent. Check your Sent folder."
+        except Exception as e:
+            logger.error("Failed to send draft %s: %s", draft_id, e)
+            msg = f"Could not send the email: {e}"
+        yield {"type": "token", "content": msg}
+        yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None, "gmail_draft_id": None}
+        return
+
     # Fast CHAT path via regex (no retrieval needed)
     if _is_chat_query(query):
         full = ""
@@ -562,17 +583,71 @@ async def run_stream(
     ]
     citations = _enrich_citations(raw, chunks)
 
-    # PLAN mode: extract summary + create Google Doc
+    # PLAN mode: extract summary + create all three artifacts in parallel
     created_doc_url = None
+    calendar_event_url = None
+    calendar_event_id = None
+    calendar_event_start_date = None
+    gmail_draft_id = None
+    gmail_draft_url = None
     summary = None
+
     if mode == "PLAN" and full_answer and "error" not in full_answer.lower():
         paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
         summary = paras[0][:400] if paras else full_answer[:400]
-        try:
-            created_doc_url = await asyncio.to_thread(create_google_doc, query, full_answer, citations)
-            logger.info("Google Doc created (stream): %s", created_doc_url)
-        except Exception as e:
-            logger.error("Google Doc creation failed (stream): %s", e)
+
+        event_title = f"progsu: {query[:60].rstrip()}"
+
+        # Step 1: Doc + Calendar in parallel
+        doc_result, cal_result = await asyncio.gather(
+            asyncio.to_thread(create_google_doc, query, full_answer, citations),
+            asyncio.to_thread(create_calendar_event, title=event_title, description=summary),
+            return_exceptions=True,
+        )
+
+        if isinstance(doc_result, Exception):
+            logger.error("Google Doc creation failed: %s", doc_result)
+        else:
+            created_doc_url = doc_result
+
+        if isinstance(cal_result, Exception):
+            logger.error("Calendar event creation failed: %s", cal_result)
+        else:
+            calendar_event_url = cal_result.get("html_link")
+            calendar_event_id = cal_result.get("event_id")
+            calendar_event_start_date = cal_result.get("start_date")
+            # Update calendar event description with doc link
+            if created_doc_url:
+                try:
+                    from src.agent.tools.create_calendar_event import _get_service, CALENDAR_ID
+                    await asyncio.to_thread(
+                        _get_service().events().patch(
+                            calendarId=CALENDAR_ID,
+                            eventId=calendar_event_id,
+                            body={"description": f"{summary}\n\nPlanning Brief: {created_doc_url}"},
+                        ).execute
+                    )
+                except Exception:
+                    pass  # Non-critical, event already created
+
+        # Step 2: Gmail draft with all links
+        email_body = build_plan_email_body(query, summary, created_doc_url, calendar_event_url)
+        email_subject = f"[progsu Agent] {query[:60].rstrip()}"
+        draft_result = await asyncio.to_thread(
+            create_gmail_draft,
+            subject=email_subject,
+            body=email_body,
+        )
+        if isinstance(draft_result, Exception):
+            logger.error("Gmail draft creation failed: %s", draft_result)
+        else:
+            gmail_draft_id = draft_result.get("draft_id")
+            gmail_draft_url = draft_result.get("draft_url")
+
+        logger.info(
+            "PLAN artifacts: doc=%s cal=%s draft=%s",
+            created_doc_url, calendar_event_url, gmail_draft_id,
+        )
 
     # Serialize citations safely
     def _serialize(c: dict) -> dict:
@@ -588,4 +663,9 @@ async def run_stream(
         "summary": summary,
         "citations": [_serialize(c) for c in citations],
         "created_doc_url": created_doc_url,
+        "calendar_event_url": calendar_event_url,
+        "calendar_event_id": calendar_event_id,
+        "calendar_event_start_date": calendar_event_start_date,
+        "gmail_draft_id": gmail_draft_id,
+        "gmail_draft_url": gmail_draft_url,
     }

@@ -22,6 +22,10 @@ export interface AgentMessage {
   mode: 'RECALL' | 'ANALYZE' | 'PLAN' | 'CHAT';
   citations: Citation[];
   created_doc_url?: string;
+  calendar_event_url?: string;
+  calendar_event_start_date?: string;
+  gmail_draft_id?: string;
+  gmail_draft_url?: string;
 }
 
 export interface UserMessage {
@@ -42,6 +46,11 @@ export interface ChatResponse {
   summary?: string;
   citations: Citation[];
   created_doc_url?: string;
+  calendar_event_url?: string;
+  calendar_event_id?: string;
+  calendar_event_start_date?: string;
+  gmail_draft_id?: string;
+  gmail_draft_url?: string;
 }
 
 export interface HistoryItem {

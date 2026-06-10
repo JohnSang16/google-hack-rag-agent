@@ -82,6 +82,11 @@ class ChatResponse(BaseModel):
     summary: Optional[str] = None
     citations: list[Citation]
     created_doc_url: Optional[str] = None
+    calendar_event_url: Optional[str] = None
+    calendar_event_id: Optional[str] = None
+    calendar_event_start_date: Optional[str] = None
+    gmail_draft_id: Optional[str] = None
+    gmail_draft_url: Optional[str] = None
 
 
 @app.get("/health")

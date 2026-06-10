@@ -52,6 +52,7 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [latestDraftId, setLatestDraftId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -88,10 +89,11 @@ export default function ChatInterface() {
     abortControllerRef.current = controller;
 
     try {
+      const filters = latestDraftId ? { gmail_draft_id: latestDraftId } : undefined;
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, history }),
+        body: JSON.stringify({ query, history, filters }),
         signal: controller.signal,
       });
 
@@ -118,7 +120,21 @@ export default function ChatInterface() {
               if (last?.role !== 'agent') return prev;
               if (ev.type === 'mode')  return [...msgs.slice(0, -1), { ...last, mode: ev.mode }];
               if (ev.type === 'token') return [...msgs.slice(0, -1), { ...last, content: last.content + ev.content }];
-              if (ev.type === 'done')  return [...msgs.slice(0, -1), { ...last, mode: ev.mode, citations: ev.citations ?? [], created_doc_url: ev.created_doc_url, summary: ev.summary }];
+              if (ev.type === 'done') {
+                if (ev.gmail_draft_id) setLatestDraftId(ev.gmail_draft_id);
+                if (ev.gmail_draft_id === null) setLatestDraftId(null);
+                return [...msgs.slice(0, -1), {
+                  ...last,
+                  mode: ev.mode,
+                  citations: ev.citations ?? [],
+                  created_doc_url: ev.created_doc_url,
+                  calendar_event_url: ev.calendar_event_url,
+                  calendar_event_start_date: ev.calendar_event_start_date,
+                  gmail_draft_id: ev.gmail_draft_id,
+                  gmail_draft_url: ev.gmail_draft_url,
+                  summary: ev.summary,
+                }];
+              }
               return prev;
             });
           } catch { /* ignore malformed SSE lines */ }
