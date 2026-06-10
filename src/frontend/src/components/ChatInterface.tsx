@@ -6,9 +6,47 @@ const API_BASE = import.meta.env.VITE_API_URL ?? '';
 import MessageBubble from './MessageBubble';
 import ModeSelector from './ModeSelector';
 
+const LOADING_MESSAGES = [
+  'cooking…',
+  'locking in…',
+  'rizzing up the database…',
+  'try-hard maxxing…',
+  'let him cook…',
+  'super saiyan mode activated…',
+  'no cap searching the archives…',
+  'going feral on the docs…',
+  'sigma retrieval arc…',
+  'glazing the vector index…',
+  'ate and left no crumbs…',
+  'this is so real fr fr…',
+  'we do a little institutional memory…',
+  'on my grind rn…',
+  'NPC behavior detected, switching to main character mode…',
+];
+
 function TypingIndicator() {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const fade = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+        setVisible(true);
+      }, 300);
+    }, 2000);
+    return () => clearInterval(fade);
+  }, []);
+
   return (
     <div className="bubble bubble--agent bubble--typing">
+      <span
+        className="typing-text"
+        style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}
+      >
+        {LOADING_MESSAGES[index]}
+      </span>
       <div className="typing">
         <span /><span /><span />
       </div>
