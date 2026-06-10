@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import axios from 'axios';
-import type { ChatResponse, HistoryItem, Message } from '../types';
+import type { HistoryItem, Message } from '../types';
 import MessageBubble from './MessageBubble';
 import ClaudeChatInput from './ui/claude-style-chat-input';
 
@@ -68,46 +67,77 @@ export default function ChatInterface() {
   async function handleSendMessage(query: string, _model: string) { // eslint-disable-line @typescript-eslint/no-unused-vars
     if (!query.trim() || loading) return;
 
-    setMessages((prev) => [...prev, { role: 'user', content: query }]);
+    const history: HistoryItem[] = messages
+      .slice(-4)
+      .filter((m) => m.role === 'user' || m.role === 'agent')
+      .map((m) => ({
+        role: m.role as 'user' | 'agent',
+        content: m.role === 'agent'
+          ? (m as { content: string }).content.slice(0, 400)
+          : (m as { content: string }).content,
+      }));
+
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: query },
+      { role: 'agent', content: '', mode: 'RECALL' as const, citations: [], created_doc_url: undefined, summary: undefined },
+    ]);
     setLoading(true);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     try {
-      const history: HistoryItem[] = messages
-        .slice(-4)
-        .filter((m) => m.role === 'user' || m.role === 'agent')
-        .map((m) => ({
-          role: m.role as 'user' | 'agent',
-          content: m.role === 'agent'
-            ? (m as { content: string }).content.slice(0, 400)
-            : (m as { content: string }).content,
-        }));
+      const response = await fetch(`${API_BASE}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, history }),
+        signal: controller.signal,
+      });
 
-      const { data } = await axios.post<ChatResponse>(
-        `${API_BASE}/chat`,
-        { query, history },
-        { signal: controller.signal },
-      );
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'agent',
-          content: data.answer,
-          summary: data.summary,
-          mode: data.mode,
-          citations: data.citations,
-          created_doc_url: data.created_doc_url,
-        },
-      ]);
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            setMessages((prev) => {
+              const msgs = [...prev];
+              const last = msgs[msgs.length - 1];
+              if (last?.role !== 'agent') return prev;
+              if (ev.type === 'mode')  return [...msgs.slice(0, -1), { ...last, mode: ev.mode }];
+              if (ev.type === 'token') return [...msgs.slice(0, -1), { ...last, content: last.content + ev.content }];
+              if (ev.type === 'done')  return [...msgs.slice(0, -1), { ...last, mode: ev.mode, citations: ev.citations ?? [], created_doc_url: ev.created_doc_url, summary: ev.summary }];
+              return prev;
+            });
+          } catch { /* ignore malformed SSE lines */ }
+        }
+      }
     } catch (err: unknown) {
-      if (axios.isCancel(err)) return;
-      const msg =
-        axios.isAxiosError(err) && err.response?.data?.detail
-          ? err.response.data.detail
-          : 'Something went wrong. Is the backend running?';
-      setMessages((prev) => [...prev, { role: 'error', content: msg }]);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === 'agent' && last.content === '') return prev.slice(0, -1);
+          return prev;
+        });
+        return;
+      }
+      setMessages((prev) => {
+        const msgs = [...prev];
+        if (msgs[msgs.length - 1]?.role === 'agent') msgs.pop();
+        return [...msgs, { role: 'error' as const, content: 'Something went wrong. Is the backend running?' }];
+      });
     } finally {
       setLoading(false);
     }

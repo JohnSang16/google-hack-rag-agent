@@ -70,6 +70,39 @@ Respond with exactly this JSON:
   "citations": []
 }}"""
 
+_STREAM_ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one — knowledgeable, direct, and genuinely invested in the org's success.
+
+Mode: {mode}
+
+Response rules — apply to every answer:
+- Open with 1-2 sentences that directly answer the question. No preamble, no "great question."
+- Then unpack the detail using bullets or short paragraphs. Summary before depth, always.
+- Keep language plain and conversational. A new member should be able to follow it.
+- Never pad. If 3 bullets cover it, don't write 3 paragraphs.
+- Consolidate closely related points into one bullet.
+- Attribute decisions to the team or role, not individual first names from meeting notes.
+- The first Hacklanta event (Spring 2026) is Hacklanta 1. Any future hackathon is Hacklanta II.
+- **HARD FACT: Hacklanta 1 is progsu's first and only hackathon ever. No prior hackathons exist. Never write "historically", "prior hackathons", "past hackathons", or any phrase implying earlier hackathons.**
+- **Never invent numbers or attendance figures.** Only use numbers verbatim from the retrieved context.
+
+Mode-specific output:
+- RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
+- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a markdown table. Close with a 2-3 sentence narrative.
+- PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history.
+
+{history_section}Retrieved context:
+{context}
+
+User query: {query}
+
+Output your response in markdown format only. Do not wrap in JSON. Do not add citation markers."""
+
+_STREAM_NO_CONTEXT_PROMPT = """You are the institutional memory of progsu. Nothing relevant came up for this query.
+
+User query: {query}
+
+Respond: I don't have anything on that in the org's records. Try asking about a specific event, meeting, or decision — I know Hacklanta, the Claude Workshop, our attendance growth, exec meetings, sponsorship strategy, and more."""
+
 _CHAT_PROMPT = """You are the progsu Intelligence Agent, the institutional memory of progsu (ProgClub at Georgia State University).
 
 The user is asking something conversational or about what you can do. Respond naturally and helpfully.
@@ -415,5 +448,144 @@ async def run(
         "answer": answer,
         "summary": summary,
         "citations": citations,
+        "created_doc_url": created_doc_url,
+    }
+
+
+_LOW_CONFIDENCE_THRESHOLD = 5
+
+
+async def run_stream(
+    query: str,
+    filters: Optional[dict] = None,
+    history: Optional[list[dict]] = None,
+    client: genai.Client = None,
+):
+    """
+    Streaming pipeline. Yields SSE event dicts:
+      {type: "mode", mode: str}
+      {type: "token", content: str}
+      {type: "done", mode, answer, citations, created_doc_url, summary}
+    """
+    if client is None:
+        client = _get_client()
+
+    if not _is_meaningful_query(query):
+        yield {"type": "mode", "mode": "RECALL"}
+        yield {"type": "token", "content": _CLARIFICATION_ANSWER}
+        yield {"type": "done", "mode": "RECALL", "answer": _CLARIFICATION_ANSWER, "citations": [], "created_doc_url": None, "summary": None}
+        return
+
+    # Fast CHAT path via regex (no retrieval needed)
+    if _is_chat_query(query):
+        full = ""
+        yield {"type": "mode", "mode": "CHAT"}
+        try:
+            async for chunk in client.aio.models.generate_content_stream(
+                model="gemini-2.0-flash",
+                contents=_CHAT_PROMPT.format(query=query),
+                config=genai.types.GenerateContentConfig(temperature=0.7, max_output_tokens=512),
+            ):
+                if chunk.text:
+                    full += chunk.text
+                    yield {"type": "token", "content": chunk.text}
+        except Exception as e:
+            logger.error("CHAT stream failed: %s", e)
+            msg = "Try asking about Hacklanta, our attendance growth, or planning a hackathon."
+            full = msg
+            yield {"type": "token", "content": msg}
+        yield {"type": "done", "mode": "CHAT", "answer": full, "citations": [], "created_doc_url": None, "summary": None}
+        return
+
+    # Parallel: classify mode + retrieve
+    retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
+    top_k = _estimate_top_k(query)
+    mode, chunks = await asyncio.gather(
+        asyncio.to_thread(classify_mode, query, client),
+        retrieve_context(retrieval_query, filters=filters, top_k=top_k, gemini_client=client),
+    )
+
+    if mode == "CHAT":
+        yield {"type": "mode", "mode": "CHAT"}
+        msg = "Ask me about Hacklanta, our attendance growth, or draft a planning doc."
+        yield {"type": "token", "content": msg}
+        yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None}
+        return
+
+    yield {"type": "mode", "mode": mode}
+
+    # Confidence gate
+    if chunks:
+        best_score = max(c.get("relevance_score", 0) for c in chunks)
+        if best_score < _LOW_CONFIDENCE_THRESHOLD:
+            msg = "I don't have enough in the org's records to answer that confidently. Try rephrasing, or ask about a specific event, meeting, or decision."
+            yield {"type": "token", "content": msg}
+            yield {"type": "done", "mode": mode, "answer": msg, "citations": [], "created_doc_url": None, "summary": None}
+            return
+
+    # Build prompt
+    history_section = _build_history_section(history or [])
+    if chunks:
+        context_block = format_context_for_prompt(chunks)
+        prompt = _STREAM_ANSWER_PROMPT.format(
+            mode=mode, query=query, context=context_block, history_section=history_section
+        )
+    else:
+        prompt = _STREAM_NO_CONTEXT_PROMPT.format(query=query)
+
+    # Stream answer with gemini-2.0-flash
+    full_answer = ""
+    max_tokens = 8192 if mode == "PLAN" else 2048
+    try:
+        async for chunk in client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(temperature=0.2, max_output_tokens=max_tokens),
+        ):
+            if chunk.text:
+                full_answer += chunk.text
+                yield {"type": "token", "content": chunk.text}
+    except Exception as e:
+        logger.error("Answer stream failed: %s", e)
+        full_answer = "An error occurred while generating a response."
+        yield {"type": "token", "content": full_answer}
+
+    # Build citations from retrieved chunks directly
+    raw = [
+        {
+            "title": c.get("metadata", {}).get("file_title", "Unknown"),
+            "date": c.get("metadata", {}).get("date"),
+            "file_id": c.get("metadata", {}).get("file_id", ""),
+            "relevance_score": c.get("relevance_score", 0),
+        }
+        for c in chunks
+    ]
+    citations = _enrich_citations(raw, chunks)
+
+    # PLAN mode: extract summary + create Google Doc
+    created_doc_url = None
+    summary = None
+    if mode == "PLAN" and full_answer and "error" not in full_answer.lower():
+        paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
+        summary = paras[0][:400] if paras else full_answer[:400]
+        try:
+            created_doc_url = await asyncio.to_thread(create_google_doc, query, full_answer, citations)
+            logger.info("Google Doc created (stream): %s", created_doc_url)
+        except Exception as e:
+            logger.error("Google Doc creation failed (stream): %s", e)
+
+    # Serialize citations safely
+    def _serialize(c: dict) -> dict:
+        msgs = c.get("messages")
+        if msgs and not isinstance(msgs[0], dict):
+            msgs = [m if isinstance(m, dict) else vars(m) for m in msgs]
+        return {**c, "messages": msgs}
+
+    yield {
+        "type": "done",
+        "mode": mode,
+        "answer": full_answer,
+        "summary": summary,
+        "citations": [_serialize(c) for c in citations],
         "created_doc_url": created_doc_url,
     }

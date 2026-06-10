@@ -7,6 +7,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.agent import agent as _agent
@@ -93,6 +94,58 @@ async def clear_cache():
     _response_cache.clear()
     logger.info("Response cache cleared")
     return {"cleared": True}
+
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest):
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="query must not be empty")
+
+    logger.info("POST /chat/stream: %s", request.query[:80])
+
+    cache_key = _cache_key(request.query, request.filters)
+    cached = _cache_get(cache_key)
+
+    async def generate():
+        if cached:
+            logger.info("Cache hit (stream): %s", request.query[:60])
+            yield f"data: {json.dumps({'type': 'mode', 'mode': cached['mode']})}\n\n"
+            yield f"data: {json.dumps({'type': 'token', 'content': cached['answer']})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', **{k: v for k, v in cached.items() if k != 'citations'}, 'citations': cached.get('citations', [])})}\n\n"
+            return
+
+        full_answer = ""
+        done_event: dict = {}
+        try:
+            async for event in _agent.run_stream(
+                query=request.query,
+                filters=request.filters or None,
+                history=[h.model_dump() for h in request.history] if request.history else None,
+            ):
+                if event.get("type") == "token":
+                    full_answer += event.get("content", "")
+                if event.get("type") == "done":
+                    done_event = event
+                yield f"data: {json.dumps(event, default=str)}\n\n"
+        except Exception as e:
+            logger.error("Stream error: %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            return
+
+        if done_event:
+            _cache_set(cache_key, {
+                "mode": done_event.get("mode", "RECALL"),
+                "answer": full_answer,
+                "summary": done_event.get("summary"),
+                "citations": done_event.get("citations", []),
+                "created_doc_url": done_event.get("created_doc_url"),
+            })
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)
