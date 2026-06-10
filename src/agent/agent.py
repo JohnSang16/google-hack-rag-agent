@@ -94,7 +94,7 @@ Response rules — apply to every answer:
 
 Mode-specific output:
 - RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
-- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a markdown table. Close with a 2-3 sentence narrative.
+- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a COMPLETE markdown table — include every data point from the context, never leave the table with only headers. Close with a 2-3 sentence narrative.
 - PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history.
 
 {history_section}Retrieved context:
@@ -223,7 +223,8 @@ async def _rewrite_query_for_retrieval(query: str, history: list[dict], client: 
         return query
     prompt = (
         f"Given this conversation, rewrite the follow-up as a single self-contained search query "
-        f"for a document retrieval system. Output only the rewritten query, nothing else.\n\n"
+        f"for a document retrieval system. Focus on the information need — strip meta-questions "
+        f"about sources, methodology, or how the system works. Output only the rewritten query, nothing else.\n\n"
         f"Previous message: {last_user}\n"
         f"Follow-up: {query}\n\n"
         f"Rewritten search query:"
@@ -459,7 +460,7 @@ async def run(
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
 
     try:
-        max_tokens = 8192 if mode == "PLAN" else 2048
+        max_tokens = 8192 if mode == "PLAN" else 4096
         response = await asyncio.to_thread(
             client.models.generate_content,
             model="gemini-2.5-flash",
