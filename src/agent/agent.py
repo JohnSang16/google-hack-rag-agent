@@ -221,9 +221,18 @@ def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
     return enriched
 
 
+_PLAN_INTENT_RE = re.compile(
+    r'\b(draft|write\s+a|create\s+a|make\s+a|plan\s+for|planning\s+brief|proposal|template)\b',
+    re.IGNORECASE,
+)
+
+
 async def _rewrite_query_for_retrieval(query: str, history: list[dict], client: genai.Client) -> str:
     """Rewrite a vague follow-up query into a self-contained search query using conversation history."""
     if not history or len(query.split()) > 12:
+        return query
+    # Preserve explicit planning intent — rewriting strips PLAN keywords and breaks classification
+    if _PLAN_INTENT_RE.search(query):
         return query
     last_user = next((h["content"] for h in reversed(history) if h["role"] == "user"), "")
     if not last_user:
@@ -655,7 +664,7 @@ async def run_stream(
 
     if mode == "PLAN" and full_answer and "error" not in full_answer.lower():
         paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
-        summary = paras[0][:400] if paras else full_answer[:400]
+        summary = paras[0][:200] if paras else full_answer[:200]
 
         event_title = f"progsu: {query[:60].rstrip()}"
 
@@ -694,16 +703,17 @@ async def run_stream(
         # Step 2: Gmail draft with all links
         email_body = build_plan_email_body(query, summary, created_doc_url, calendar_event_url)
         email_subject = f"[progsu Agent] {query[:60].rstrip()}"
-        draft_result = await asyncio.to_thread(
-            create_gmail_draft,
-            subject=email_subject,
-            body=email_body,
-        )
-        if isinstance(draft_result, Exception):
-            logger.error("Gmail draft creation failed: %s", draft_result)
-        else:
+        try:
+            draft_result = await asyncio.to_thread(
+                create_gmail_draft,
+                subject=email_subject,
+                body=email_body,
+            )
             gmail_draft_id = draft_result.get("draft_id")
             gmail_draft_url = draft_result.get("draft_url")
+        except Exception as e:
+            logger.error("Gmail draft creation failed: %s", e)
+            yield {"type": "error", "content": f"Gmail draft creation failed: {e}"}
 
         logger.info(
             "PLAN artifacts: doc=%s cal=%s draft=%s",
