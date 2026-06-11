@@ -329,6 +329,29 @@ def _estimate_top_k(query: str) -> int:
     return 5
 
 
+_OUTREACH_EMAIL_PROMPT = """You are writing a short sponsor outreach email on behalf of progsu, the largest student tech org at Georgia State University.
+
+Recipient context: {recipient_context}
+Planning doc link (include if not empty): {doc_url}
+
+Planning brief to draw from:
+{plan_content}
+
+Output exactly this format — nothing else:
+Subject: <subject line>
+
+<email body>
+
+Rules:
+- 2 short paragraphs, under 100 words total in the body
+- First paragraph: one sentence on what Hacklanta II is and why it matters
+- Second paragraph: one sentence on what sponsorship enables, one sentence CTA
+- If doc_url is not empty, add exactly this as a third line: "Full planning brief: <url>"
+- Sign off: progsu Leadership Team
+- Address as "Hi," with no name
+- No flattery, no "we are thrilled", no filler — direct and confident
+- Plain text only"""
+
 _CLARIFICATION_ANSWER = (
     "That's not enough for me to search the org's records. "
     "Try asking about a specific event, meeting, or decision.\n\n"
@@ -549,19 +572,48 @@ async def run_stream(
     # Explicit send-to-email intent: "send this to the sponsor email"
     if is_send_to_email_intent(query):
         yield {"type": "mode", "mode": "CHAT"}
-        last_agent_content = next(
-            (h["content"] for h in reversed(history or []) if h.get("role") == "agent"),
-            None,
-        )
-        if last_agent_content:
+        # Find the most recent PLAN brief in history (identified by ## headers + length)
+        plan_content = None
+        for h in reversed(history or []):
+            if h.get("role") == "agent":
+                c = h.get("content", "")
+                if "##" in c and len(c) > 200:
+                    plan_content = c
+                    break
+        # Fallback: longest agent turn
+        if not plan_content:
+            agent_turns = [h.get("content", "") for h in (history or []) if h.get("role") == "agent"]
+            plan_content = max(agent_turns, key=len) if agent_turns else None
+
+        plan_doc_url = (filters or {}).get("plan_doc_url", "")
+        if plan_content:
             try:
-                email_subject = "[progsu] Planning Brief"
-                email_body = build_plan_email_body(query, last_agent_content[:1500], None, None)
+                # Use Gemini to write a proper outreach email
+                email_prompt = _OUTREACH_EMAIL_PROMPT.format(
+                    recipient_context=query,
+                    doc_url=plan_doc_url or "",
+                    plan_content=plan_content[:3000],
+                )
+                email_response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=email_prompt,
+                    config=genai.types.GenerateContentConfig(temperature=0.3, max_output_tokens=2048),
+                )
+                raw_email = email_response.text.strip()
+                # Parse subject from first line
+                lines = raw_email.split("\n", 2)
+                if lines[0].lower().startswith("subject:"):
+                    email_subject = lines[0][8:].strip()
+                    email_body = "\n".join(lines[1:]).lstrip("\n")
+                else:
+                    email_subject = "[progsu] Planning Brief"
+                    email_body = raw_email
+
                 draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
                 draft_id = draft_result.get("draft_id")
                 await asyncio.to_thread(send_gmail_draft, draft_id)
-                recipient = os.getenv("GMAIL_DEMO_RECIPIENT", "the recipient")
-                msg = f"Done. Email sent to {recipient}."
+                msg = f"Done. Email sent to sponsors.\n\n**Subject:** {email_subject}"
             except Exception as e:
                 logger.error("Send-to-email failed: %s", e)
                 msg = f"Could not send the email: {e}"
@@ -686,7 +738,12 @@ async def run_stream(
         paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
         summary = paras[0][:200] if paras else full_answer[:200]
 
-        event_title = f"progsu: {query[:60].rstrip()}"
+        # Derive a clean event title from the first heading in the brief, fallback to query
+        heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
+        if heading_match:
+            event_title = f"progsu: {heading_match.group(1).strip()[:60]}"
+        else:
+            event_title = f"progsu: {query[:60].rstrip()}"
 
         # Step 1: Doc + Calendar in parallel
         doc_result, cal_result = await asyncio.gather(

@@ -93,7 +93,7 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
           )}
           {message.calendar_event_url && (
             <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer"
-              style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
+              style={{ background: 'rgba(96,165,250,0.08)', borderColor: 'rgba(96,165,250,0.25)', color: '#93c5fd' }}>
               <span className="doc-link__icon">📅</span>
               View Calendar Event{message.calendar_event_start_date ? ` — ${message.calendar_event_start_date}` : ''}
             </a>

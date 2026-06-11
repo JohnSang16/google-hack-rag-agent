@@ -59,6 +59,7 @@ export default function ChatInterface() {
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [panelMsg, setPanelMsg] = useState<AgentMessage | null>(null);
+  const [latestPlanDocUrl, setLatestPlanDocUrl] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -95,10 +96,11 @@ export default function ChatInterface() {
     abortControllerRef.current = controller;
 
     try {
+      const filters = latestPlanDocUrl ? { plan_doc_url: latestPlanDocUrl } : undefined;
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, history }),
+        body: JSON.stringify({ query, history, filters }),
         signal: controller.signal,
       });
 
@@ -119,6 +121,9 @@ export default function ChatInterface() {
           if (!line.startsWith('data: ')) continue;
           try {
             const ev = JSON.parse(line.slice(6));
+            if (ev.type === 'done' && ev.mode === 'PLAN' && ev.created_doc_url) {
+              setLatestPlanDocUrl(ev.created_doc_url);
+            }
             setMessages((prev) => {
               const msgs = [...prev];
               const last = msgs[msgs.length - 1];
