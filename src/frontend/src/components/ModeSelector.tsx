@@ -12,7 +12,7 @@ const MODES = [
   {
     label: 'PLAN',
     color: 'plan',
-    tip: 'Draft a doc, plan an event — creates a Google Doc',
+    tip: 'Draft a doc, plan an event. Creates a Google Doc.',
   },
 ] as const;
 

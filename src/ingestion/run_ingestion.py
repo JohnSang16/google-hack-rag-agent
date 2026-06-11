@@ -114,7 +114,7 @@ PRIORITY_3 = [
 ]
 
 PRIORITY_4 = [
-    {"file_id": "1u94gnTmZpoJdkjUGDWCKL3_WhqI7v5VumlVc1zXkL7I", "file_title": "PROGSU Company Partnership Opportunities", "doc_type": "growth"},
+    {"file_id": "1u94gnTmZpoJdkjUGDWCKL3_WhqI7v5VumlVc1zXkL7I", "file_title": "progsu Company Partnership Opportunities", "doc_type": "growth"},
     {"file_id": "1fWSXp0M8gj-finvR3vNFnC0GZABv8SHgGy6bUHsToPw", "file_title": "Growth Team", "doc_type": "growth"},
     {"file_id": "1lf8mq46UNx7SLwQqD5Z6bNUSfFZYjxmWv4zoT-fwc1w", "file_title": "Growth Team Event Procedure Template", "doc_type": "blueprint"},
     {"file_id": "17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww", "file_title": "Progsu Org Structure", "doc_type": "wiki"},
@@ -314,7 +314,7 @@ def main() -> None:
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        logger.error("GEMINI_API_KEY is not set — aborting")
+        logger.error("GEMINI_API_KEY is not set. Aborting.")
         sys.exit(1)
 
     gemini_client = genai.Client(api_key=api_key)
@@ -382,7 +382,7 @@ def main() -> None:
         "run_id": run_ts,
         "priority": args.priority,
         "priority_description": PRIORITY_LABELS.get(args.priority, "Custom single-file run."),
-        "project": "progsu Intelligence Agent — RAG pipeline for student org institutional memory (Google Cloud Hackathon)",
+        "project": "progsu Intelligence Agent: RAG pipeline for student org institutional memory (Google Cloud Hackathon)",
         "mongodb_collection": os.getenv("MONGODB_COLLECTION", "chunks"),
         "mongodb_db": os.getenv("MONGODB_DB_NAME", "progsu_intelligence"),
         "skip_gemini_pii": args.skip_gemini_pii,

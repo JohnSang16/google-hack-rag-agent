@@ -152,7 +152,7 @@ def main(export_dir: Path, skip_noise_filter: bool = False) -> None:
             "file_id": f"discord_{channel}",
             "file_title": f"Discord #{channel}",
             "chunk_index": chunk_index,
-            "source_heading": f"{channel} — {date}",
+            "source_heading": f"{channel}, {date}",
             "discord_url": discord_url,
             "messages": display_messages,
         }

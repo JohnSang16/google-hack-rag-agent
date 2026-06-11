@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 AGGREGATES = [
     {
         "file_id": "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",
-        "file_title": "Combined Attendance — Fall 2025 / Spring 2026 Aggregate",
+        "file_title": "Combined Attendance: Fall 2025 and Spring 2026 Aggregate",
         "doc_type": "feedback_aggregate",
         "semester": "all",
         "date": "2026-02-28",
-        "text": """progsu Event Attendance Trends — Fall 2025 through Spring 2026
+        "text": """progsu Event Attendance Trends: Fall 2025 through Spring 2026
 
 This document summarizes attendance and registration data across all progsu events tracked via Luma from August 2025 through February 2026.
 
@@ -33,7 +33,7 @@ REGISTRATION TOTALS BY MONTH:
 - August 2025: 5 registrations (early sign-ups before semester start)
 - September 2025: 107 registrations (Involvement Fair / Fall Kickoff event)
 - October 2025: 183 registrations (Fall workshop series events)
-- November 2025: 215 registrations (peak Fall 2025 engagement — highest monthly count)
+- November 2025: 215 registrations (peak Fall 2025 engagement, highest monthly count)
 - January 2026: 6 registrations (semester transition period)
 - February 2026: 157 registrations (Spring 2026 ramp-up, pre-Hacklanta)
 
@@ -47,7 +47,7 @@ EVENT BREAKDOWN:
 - Spring 2026 Pre-Hacklanta (Feb 2026): 157 registrations
 
 GROWTH TRAJECTORY:
-- Attendance grew from 107 in September 2025 to a peak of 215 in November 2025 — a 101% increase over Fall 2025.
+- Attendance grew from 107 in September 2025 to a peak of 215 in November 2025, a 101% increase over Fall 2025.
 - February 2026 (157 registrations) shows strong Spring 2026 momentum, representing a 47% re-engagement rate from Fall 2025 peak.
 - November 2025 was the highest single-month registration count of the year.
 
@@ -60,12 +60,12 @@ KEY METRIC: Across all Fall 2025 events, progsu achieved 494 new registrations w
     },
     {
         "file_id": "1vkXd1xD-Q8tWhYFLhsTUQkV9i6xIsMNskXxFaGRJYwI",
-        "file_title": "Hacklanta Spring 2026 — Judge Scoring and Project Outcomes (Aggregate)",
+        "file_title": "Hacklanta Spring 2026: Judge Scoring and Project Outcomes (Aggregate)",
         "doc_type": "feedback_aggregate",
         "semester": "spring_2026",
         "event_name": "hacklanta",
         "date": "2026-03-28",
-        "text": """Hacklanta Spring 2026 — Project Submissions, Judge Scoring, and Winners
+        "text": """Hacklanta Spring 2026: Project Submissions, Judge Scoring, and Winners
 Event Date: March 28, 2026
 
 OVERVIEW:
@@ -88,30 +88,30 @@ Maximum score: 50 points
 
 TOP SCORING PROJECTS BY TRACK:
 Cox Track (AI Social Good):
-- ECycleGo: 49/50 — top scorer, e-waste recycling app
-- FaceScan: 48/50 — facial recognition utility
-- Quest: 48/50 — community connection app (judges noted strong revenue potential)
+- ECycleGo: 49/50, top scorer, e-waste recycling app
+- FaceScan: 48/50, facial recognition utility
+- Quest: 48/50, community connection app (judges noted strong revenue potential)
 - DemoCare: 43/50
 - Hostile Philanthropy: 46/50
-- Stride: 44/50 — mobile app, highly rated by Jitendra Zaa
+- Stride: 44/50, mobile app, highly rated by Jitendra Zaa
 
 Finance Track (Jackpot):
-- JuiceArb: 50/50, 50/50 — dual perfect scores, described as "very technical and clean"
-- Lim Video Editor: 50/50, 48/50 — highest finance scores, judges cited "great use of Gemini API"
-- TariffCheck: 48/50, 41/50 — live demo praised
-- The House: 46/50 — flagged for potential "Funniest LLM" award
+- JuiceArb: 50/50, 50/50, dual perfect scores, described as "very technical and clean"
+- Lim Video Editor: 50/50, 48/50, highest finance scores, judges cited "great use of Gemini API"
+- TariffCheck: 48/50, 41/50, live demo praised
+- The House: 46/50, flagged for potential "Funniest LLM" award
 - Truth Layer: 46/50
 
 Jack of All Trades (Most Creative):
-- LinkedOut: 50/50, 50/50 — dual perfect scores, "directly posts to LinkedIn account, amazing work"
-- Melodoom: 47/50 — "fully presentable app"
-- Runnon: 45/50 — "functioning startup, unique idea, actual impact"
+- LinkedOut: 50/50, 50/50, dual perfect scores, "directly posts to LinkedIn account, amazing work"
+- Melodoom: 47/50, "fully presentable app"
+- Runnon: 45/50, "functioning startup, unique idea, actual impact"
 - Counterstrike: 41/50
 
 Nexlayer Track (All-In):
-- The Brand Factory: 48/50 — "by far the best I have seen, fully functional, really well presented" (Brian Huss judge)
+- The Brand Factory: 48/50, "by far the best I have seen, fully functional, really well presented" (Brian Huss judge)
 - Rivl: 47/50
-- LandLord Flip: 47/50 — "amazing idea, agent loops, AI tools brought together"
+- LandLord Flip: 47/50, "amazing idea, agent loops, AI tools brought together"
 - DuoQ: 44/50
 - ATHFLO: 44/50
 
@@ -128,32 +128,32 @@ JUDGE FEEDBACK THEMES:
 - Presentation clarity and demo execution separated similar-quality projects
 
 SPONSORS PRESENT:
-Cox, Equifax, Amazon, Microsoft, Nexlayer — all had on-site judging tables and mentors.
+Cox, Equifax, Amazon, Microsoft, Nexlayer. All had on-site judging tables and mentors.
 """,
     },
     {
         "file_id": "1vses3E-EY6PRlW5NdSTDBtXUkUPvSXLlOXviVTyhooI",
-        "file_title": "Hacklanta Spring 2026 — Email and SMS Campaign Strategy (Aggregate)",
+        "file_title": "Hacklanta Spring 2026: Email and SMS Campaign Strategy (Aggregate)",
         "doc_type": "feedback_aggregate",
         "semester": "spring_2026",
         "event_name": "hacklanta",
         "date": "2026-03-28",
-        "text": """Hacklanta Spring 2026 — Email & SMS Marketing Campaign Summary
+        "text": """Hacklanta Spring 2026: Email and SMS Marketing Campaign Summary
 
 CAMPAIGN OVERVIEW:
-A 10-email drip campaign was executed over the 9 days leading up to Hacklanta (March 19–28, 2026). Campaign was planned and tracked by the Growth Team.
+A 10-email drip campaign was executed over the 9 days leading up to Hacklanta (March 19 to 28, 2026). Campaign was planned and tracked by the Growth Team.
 
 EMAIL SEQUENCE:
-1. March 19 (9 days out) — Opening teaser: "progsu presents Hacklanta! March 28th." Target: 25% open rate. Full list.
-2. March 20 (8 days out) — Prize-forward: "$1,500 Cash Prize + Internship Opportunity." Target: 3-5% CTR. Full list + Email 1 openers.
-3. March 21 (7 days out) — First-timer guide: "Here's what to expect at Hacklanta." Target: 30%+ open rate. Full list (heaviest for first-timers).
-4. March 22 (6 days out) — AI tools allowed: "AI is 100% allowed. Build smarter." Target: strong CTR from non-CS majors.
-5. March 23 (5 days out) — Final deadline: "Applications close tonight." Target: highest CTR of series.
-6. March 24 (4 days out) — Acceptance email: "You're in! Welcome to Hacklanta." Target: 80%+ open rate. Accepted applicants only. Automated.
-7. March 25 (3 days out) — Discord team-finding: "Find your team before Saturday." Target: drive Discord engagement. Accepted only.
-8. March 26 (2 days out) — Sponsor preview: "Meet Cox, Equifax, Amazon, Microsoft at Hacklanta." Target: reduce no-shows. Accepted only.
-9. March 27 (1 day out) — Final checklist: "Hacklanta is TOMORROW." Target: lowest unsubscribe rate. Accepted only.
-10. March 28 (event day) — Day-of push: "Shuffle up and deal. HACKLANTA starts TODAY." Sent 7-8 AM. Target: 90%+ open rate.
+1. March 19 (9 days out): Opening teaser: "progsu presents Hacklanta! March 28th." Target: 25% open rate. Full list.
+2. March 20 (8 days out): Prize-forward: "$1,500 Cash Prize + Internship Opportunity." Target: 3-5% CTR. Full list + Email 1 openers.
+3. March 21 (7 days out): First-timer guide: "Here's what to expect at Hacklanta." Target: 30%+ open rate. Full list (heaviest for first-timers).
+4. March 22 (6 days out): AI tools allowed: "AI is 100% allowed. Build smarter." Target: strong CTR from non-CS majors.
+5. March 23 (5 days out): Final deadline: "Applications close tonight." Target: highest CTR of series.
+6. March 24 (4 days out): Acceptance email: "You're in! Welcome to Hacklanta." Target: 80%+ open rate. Accepted applicants only. Automated.
+7. March 25 (3 days out): Discord team-finding: "Find your team before Saturday." Target: drive Discord engagement. Accepted only.
+8. March 26 (2 days out): Sponsor preview: "Meet Cox, Equifax, Amazon, Microsoft at Hacklanta." Target: reduce no-shows. Accepted only.
+9. March 27 (1 day out): Final checklist: "Hacklanta is TOMORROW." Target: lowest unsubscribe rate. Accepted only.
+10. March 28 (event day): Day-of push: "Shuffle up and deal. HACKLANTA starts TODAY." Sent 7-8 AM. Target: 90%+ open rate.
 
 KEY MESSAGING PILLARS:
 - $1,500 cash prizes + internship opportunity (primary conversion lever)
@@ -175,11 +175,11 @@ CAMPAIGN DESIGN NOTES:
     },
     {
         "file_id": "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",
-        "file_title": "Involvement Fair Signups — Fall 2025 (Aggregate)",
+        "file_title": "Involvement Fair Signups: Fall 2025 (Aggregate)",
         "doc_type": "feedback_aggregate",
         "semester": "fall_2025",
         "date": "2025-09-01",
-        "text": """Involvement Fair Signups — Fall 2025
+        "text": """Involvement Fair Signups: Fall 2025
 
 OVERVIEW:
 progsu captured approximately 64 member interest signups at the Fall 2025 Involvement Fair at Georgia State University.
@@ -207,22 +207,22 @@ CONTEXT:
     },
     {
         "file_id": "1SfX0WMhVv98e_lXxCDsEAz-FJ0F-WbXyddZv1e0iSJ0",
-        "file_title": "Growth Team Recruitment Spring 2026 — Interview Themes and Outcomes (Aggregate)",
+        "file_title": "Growth Team Recruitment Spring 2026: Interview Themes and Outcomes (Aggregate)",
         "doc_type": "feedback_aggregate",
         "semester": "spring_2026",
         "team": "growth",
         "date": "2026-03-01",
-        "text": """Growth Team Recruitment — Spring 2026 Interview Themes and Outcomes
+        "text": """Growth Team Recruitment: Spring 2026 Interview Themes and Outcomes
 
 OVERVIEW:
 The Growth Team conducted structured interviews for Content, Design, Community, and Outreach roles during Spring 2026. Interviews used a 4-dimension scoring rubric.
 
 INTERVIEW STRUCTURE:
 Four dimensions scored 1-5:
-1. Strategic Thinking — diagnose before prescribe; prioritize under pressure
-2. Platform Fluency — Instagram, LinkedIn, TikTok, Discord knowledge
-3. Reliability & Ownership — initiative vs. waiting to be told; deadline awareness
-4. Culture Fit — alignment with progsu voice: real, direct, community-driven
+1. Strategic Thinking: diagnose before prescribe; prioritize under pressure
+2. Platform Fluency: Instagram, LinkedIn, TikTok, Discord knowledge
+3. Reliability and Ownership: initiative vs. waiting to be told; deadline awareness
+4. Culture Fit: alignment with progsu voice: real, direct, community-driven
 
 COMMON SCENARIOS TESTED:
 - Marketing a 100-person event with Anthropic within 4 days to get 150 RSVPs
@@ -233,7 +233,7 @@ COMMON SCENARIOS TESTED:
 STRONG CANDIDATE PATTERNS (green flags):
 - Named specific channels for different goals (Instagram for reach, LinkedIn for professional, TikTok for virality, Discord for conversion)
 - Thought in day-by-day rollout: Day 1 announce, Day 2 hype, Day 3 urgency, Day 4 push
-- Referenced Instagram Insights (view retention, saves, shares — not just likes)
+- Referenced Instagram Insights (view retention, saves, shares, not just likes)
 - Understood asset dependency: nothing posts until Design finishes flyer
 - Named day-of content specifics: crowd shots, speaker photos, attendee testimonials, boomerangs, Stories
 
@@ -251,33 +251,33 @@ CANDIDATE OUTCOMES:
 
 ROLE-SPECIFIC CONTEXT:
 - Content: Owned reels, Stories, posting calendar
-- Design: Owned flyers, slides, Lu.ma thumbnails — nothing ships without Design approval
+- Design: Owned flyers, slides, Lu.ma thumbnails. Nothing ships without Design approval
 - Community: Owned Discord blasts, onboarding, post-event feedback surveys
 - Outreach: Owned CRM, campus contacts, sponsor/judge pipeline
 """,
     },
     {
         "file_id": "1piZbWBvRcm25sArgmnC9IvHZ9RDkNKqTZz6C_rf8UBg",
-        "file_title": "Tech and Dev Team Recruitment Spring 2026 — Interview Themes and Outcomes (Aggregate)",
+        "file_title": "Tech and Dev Team Recruitment Spring 2026: Interview Themes and Outcomes (Aggregate)",
         "doc_type": "feedback_aggregate",
         "semester": "spring_2026",
         "team": "tech",
         "date": "2026-05-01",
-        "text": """Tech & Dev (T&D) Team Recruitment — Spring 2026 Interview Themes and Outcomes
+        "text": """Tech and Dev (T&D) Team Recruitment: Spring 2026 Interview Themes and Outcomes
 
 OVERVIEW:
-The Tech & Dev team conducted structured behavioral interviews for general member positions in Spring 2026. Interviews followed a behavioral-first format.
+The Tech and Dev team conducted structured behavioral interviews for general member positions in Spring 2026. Interviews followed a behavioral-first format.
 
 INTERVIEW PILLARS:
-1. Culture Fit — alignment with org values, problem-solving approach, team dynamics
-2. Communication & Teamwork — clarity, flagging blockers, handling feedback
-3. Availability & Commitment — realistic bandwidth, not resume-padding
-4. Technical Depth — ability to produce quality work, understand code independently
+1. Culture Fit: alignment with org values, problem-solving approach, team dynamics
+2. Communication and Teamwork: clarity, flagging blockers, handling feedback
+3. Availability and Commitment: realistic bandwidth, not resume-padding
+4. Technical Depth: ability to produce quality work, understand code independently
 
 KEY INTERVIEW QUESTIONS:
 - Tell me about yourself / why T&D specifically?
 - What have you been obsessed with recently? (tech or non-tech)
-- Walk through a project where things went sideways — how did you handle it?
+- Walk through a project where things went sideways. How did you handle it?
 - Tell me about a time you disagreed with feedback
 - Walk me through your current semester / bandwidth
 - If you had to design a beginner workshop, where would you start?
@@ -285,9 +285,9 @@ KEY INTERVIEW QUESTIONS:
 CANDIDATE OUTCOMES SUMMARY:
 Strong Yes verdicts:
 - Brice Dockett: Strong culture fit, honest about availability, Okay technical depth
-- Luigi Fernandez: Strong Yes — studying for certs, SOC project on AWS, YT channel explaining cybersecurity, 10hrs/week availability
-- Colby Threlkeld: Strong Yes — strong technical depth, flexible fall schedule, interested in educational content and professional development
-- Dara Akinoba: Strong Yes — previous drone/satellite internship (Azile Network, MATLAB+C, power efficiency), designer background, placed progsu as #2 priority after school
+- Luigi Fernandez: Strong Yes. Studying for certs, SOC project on AWS, YT channel explaining cybersecurity, 10hrs/week availability.
+- Colby Threlkeld: Strong Yes. Strong technical depth, flexible fall schedule, interested in educational content and professional development.
+- Dara Akinoba: Strong Yes. Previous drone/satellite internship (Azile Network, MATLAB+C, power efficiency), designer background, placed progsu as #2 priority after school.
 
 Pass:
 - One candidate passed due to weak technical depth, vague availability, and poor communication fit
