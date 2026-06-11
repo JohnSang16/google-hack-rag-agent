@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { HistoryItem, Message } from '../types';
+import type { AgentMessage, HistoryItem, Message } from '../types';
 import MessageBubble from './MessageBubble';
+import DocPanel from './DocPanel';
 import ClaudeChatInput from './ui/claude-style-chat-input';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
@@ -57,6 +58,7 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [panelMsg, setPanelMsg] = useState<AgentMessage | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -194,6 +196,13 @@ export default function ChatInterface() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-0)', fontFamily: 'var(--sans)' }}>
+      <DocPanel
+        open={panelMsg !== null}
+        onClose={() => setPanelMsg(null)}
+        markdown={panelMsg?.content ?? ''}
+        docUrl={panelMsg?.created_doc_url}
+        query={panelMsg ? (messages.find((m, i) => m.role === 'user' && messages[i + 1] === panelMsg)?.content ?? 'Planning Brief') : ''}
+      />
 
       {isEmpty ? (
         /* Empty state: everything centered together */
@@ -223,7 +232,18 @@ export default function ChatInterface() {
                   i === messages.length - 1;
                 if (isStreamingPlaceholder) return null;
                 const isActiveStream = loading && i === messages.length - 1 && msg.role === 'agent';
-                return <MessageBubble key={i} message={msg} streaming={isActiveStream} />;
+                return (
+                  <MessageBubble
+                    key={i}
+                    message={msg}
+                    streaming={isActiveStream}
+                    onOpenBrief={
+                      msg.role === 'agent' && msg.mode === 'PLAN' && !isActiveStream
+                        ? () => setPanelMsg(msg as AgentMessage)
+                        : undefined
+                    }
+                  />
+                );
               })}
               {loading && (messages[messages.length - 1]?.role !== 'agent' || (messages[messages.length - 1] as { content: string }).content === '') && (
                 <TypingIndicator />
