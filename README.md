@@ -33,7 +33,7 @@ Every RECALL and ANALYZE answer includes citations: source name, date, and a dir
 
 | Layer | Technology |
 |---|---|
-| LLM + Embeddings | Gemini 2.5 Flash + text-embedding-004 |
+| LLM + Embeddings | Gemini 2.5 Flash + gemini-embedding-001 (768-dim) |
 | Agent Orchestration | Google Cloud Agent Builder (Vertex AI) |
 | Vector + Document Store | MongoDB Atlas with Atlas Vector Search |
 | Agent-to-DB Bridge | MongoDB MCP Server |
