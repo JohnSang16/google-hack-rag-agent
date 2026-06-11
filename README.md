@@ -251,6 +251,20 @@ The Dockerfile builds the FastAPI app. Secrets (Drive OAuth token) are mounted v
 
 ---
 
+## Broader Impact
+
+progsu is one club at one university. The problem it solves is not.
+
+Every ACM chapter, Google Developer Student Club, IEEE branch, NSBE chapter, and student org of any kind runs on the same two rails: Google Drive and Discord (or Slack). Leadership turns over every year. Every graduating class takes years of institutional knowledge with it: which vendors to avoid, what sponsorship pitch worked, how to staff a 400-person event, why the previous approach to outreach failed.
+
+This agent is org-agnostic. Swap the Drive folder ID and the Discord export and it works for any organization that stores its history in documents and chat. The ingestion pipeline handles meeting notes, event logistics, financials, and message threads regardless of which org produced them. The retrieval layer does not know what progsu is. It knows what a chunk is.
+
+The higher-order version of this is a platform: a single deployment where any student org can connect their Drive and Discord, ingest their data, and get an AI chief of staff that knows their full history. RECALL lets any new officer ask "what did we try before and why did it fail?" ANALYZE turns scattered attendance logs into trend reports without a data team. PLAN turns the collective memory of every past event into a draft brief for the next one, complete with artifacts, in under a minute.
+
+The bottleneck to institutional knowledge transfer in student organizations has always been documentation inertia: things get written down inconsistently, and even when they do, nobody reads them. An agent that reads everything and answers in plain language removes that bottleneck. The value compounds with time: the longer the org runs, the richer the history, and the more useful the agent becomes to whoever inherits leadership next.
+
+---
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
