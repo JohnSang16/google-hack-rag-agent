@@ -373,7 +373,7 @@ async def chat_stream(request: ChatRequest):
     }
 
     async def generate():
-        if cached:
+        if cached and cached.get("mode") != "PLAN":
             logger.info("Cache hit (stream): %s", request.query[:60])
             mode = cached["mode"]
             cfg = _CACHE_CONFIG.get(mode, _CACHE_CONFIG["RECALL"])
@@ -423,7 +423,8 @@ async def chat_stream(request: ChatRequest):
                 "gmail_draft_id": done_event.get("gmail_draft_id"),
                 "gmail_draft_url": done_event.get("gmail_draft_url"),
             }
-            _cache_set(cache_key, entry)
+            if entry.get("mode") != "PLAN":
+                _cache_set(cache_key, entry)
             # Persist any real artifact URLs so they survive future cache/clears
             artifacts = {f: entry[f] for f in _ARTIFACT_FIELDS if entry.get(f)}
             if artifacts and request.query.strip() in _DEMO_SEEDS:
@@ -446,7 +447,7 @@ async def chat(request: ChatRequest):
 
     cache_key = _cache_key(request.query, request.filters)
     cached = _cache_get(cache_key)
-    if cached:
+    if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])
         return ChatResponse(**cached)
 
@@ -463,7 +464,8 @@ async def chat(request: ChatRequest):
             citations=[Citation(**c) for c in result["citations"]],
             created_doc_url=result.get("created_doc_url"),
         )
-        _cache_set(cache_key, response.model_dump())
+        if response.mode != "PLAN":
+            _cache_set(cache_key, response.model_dump())
         return response
     except Exception as e:
         logger.error("Agent error: %s", e)

@@ -96,7 +96,7 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
           )}
           {message.calendar_event_url && (
             <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer">
-              <span className="doc-link__dot" style={{ background: '#60a5fa' }} />
+              <span className="doc-link__dot" style={{ background: '#4ade80' }} />
               <span className="doc-link__icon"><CalendarIcon size={12} /></span>
               Calendar
               <ExternalLinkIcon size={10} style={{ opacity: 0.4, marginLeft: 2 }} />
@@ -104,7 +104,7 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
           )}
           {message.gmail_draft_url && (
             <a className="doc-link" href={message.gmail_draft_url} target="_blank" rel="noopener noreferrer">
-              <span className="doc-link__dot" style={{ background: '#f59e0b' }} />
+              <span className="doc-link__dot" style={{ background: '#4ade80' }} />
               <span className="doc-link__icon"><MailCheckIcon size={12} /></span>
               Email Sent
               <ExternalLinkIcon size={10} style={{ opacity: 0.4, marginLeft: 2 }} />
