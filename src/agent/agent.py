@@ -349,7 +349,8 @@ Rules:
 - If doc_url is not empty, add exactly this as a third line: "Full planning brief: <url>"
 - Sign off: progsu Leadership Team
 - Address as "Hi," with no name
-- No flattery, no "we are thrilled", no filler — direct and confident
+- No flattery, no "we are thrilled", no filler. Direct and confident.
+- Never use em dashes (--) or en dashes. Use commas or periods instead.
 - Plain text only"""
 
 _CLARIFICATION_ANSWER = (
