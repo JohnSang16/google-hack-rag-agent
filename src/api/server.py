@@ -52,33 +52,6 @@ def _check_rate_limit(ip: str) -> bool:
     return True
 
 
-_ORG_KEYWORDS = {
-    "progsu", "hacklanta", "hackathon", "hack", "workshop", "event", "events",
-    "attendance", "sponsor", "sponsorship", "logistics", "meeting", "notes",
-    "semester", "fall", "spring", "2025", "2026", "gsu", "georgia state",
-    "exec", "team", "outreach", "growth", "discord", "drive", "doc", "brief",
-    "plan", "recall", "analyze", "claude", "involvement", "fair", "kickoff",
-    "budget", "finance", "venue", "checkin", "check-in", "prize", "judges",
-    "runofshow", "run of show", "doordash", "red bull", "celsius", "libso",
-    "curriculum", "tech", "operations", "president", "director", "officer",
-    "member", "org", "club", "chapter", "student",
-}
-
-_PUBLIC_NOTICE = (
-    "This is a private knowledge base built for progsu, Georgia State's student tech org. "
-    "It only knows about progsu's internal history: events, meetings, decisions, and org data.\n\n"
-    "This demo is scoped for judging purposes. If you're exploring the app, try one of the "
-    "suggested queries. They show what the system actually does with real org data."
-)
-
-
-def _is_off_topic(query: str) -> bool:
-    q = query.lower()
-    if any(kw in q for kw in _ORG_KEYWORDS):
-        return False
-    words = [w.strip(".,?!") for w in q.split()]
-    return len(words) >= 3
-
 
 def _check_query(query: str) -> Optional[str]:
     if len(query) > _MAX_QUERY_LEN:
@@ -443,14 +416,6 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         guard_err = _check_query(request.query.strip())
         if guard_err:
             raise HTTPException(status_code=400, detail=guard_err)
-
-        if _is_off_topic(request.query.strip()):
-            logger.info("Off-topic query from %s: %s", ip, request.query[:60])
-            async def _notice_stream():
-                yield f"data: {json.dumps({'type': 'mode', 'mode': 'CHAT'})}\n\n"
-                yield f"data: {json.dumps({'type': 'token', 'content': _PUBLIC_NOTICE})}\n\n"
-                yield f"data: {json.dumps({'type': 'done', 'mode': 'CHAT', 'answer': _PUBLIC_NOTICE, 'citations': [], 'created_doc_url': None, 'summary': None})}\n\n"
-            return StreamingResponse(_notice_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
