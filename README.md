@@ -139,7 +139,13 @@ src/
       utils/
         renderMarkdown.tsx   plain-text extraction for copy-to-clipboard
 tests/
-  eval/                      evaluation pipeline for retrieval quality + hallucination detection
+  eval/
+    fixtures.py              labeled query fixtures for all eval dimensions
+    eval_mode_classifier.py  mode classification accuracy across 18 labeled queries
+    eval_retrieval.py        retrieval hit rate, precision@3, mean relevance score
+    eval_answer_quality.py   Gemini-as-judge: faithfulness, relevance, hallucination rate
+    run_eval.py              orchestrator — runs all suites, writes JSON report
+    reports/                 eval output (latest.json written on each run)
 docs/
   ARCHITECTURE.md            system design, prompts, index definitions
   DATA_MAP.md                all Drive file IDs with ingest/skip labels
@@ -148,6 +154,41 @@ docs/
   DEVPOST_DRAFT.md           Devpost submission copy
   JUDGING_ALIGNMENT.md       criteria to feature mapping
 ```
+
+---
+
+## Metrics
+
+Three eval suites measure quality across every layer of the pipeline. Run them all at once:
+
+```bash
+python -m tests.eval.run_eval
+# report written to tests/eval/reports/latest.json
+```
+
+Or run any suite individually:
+
+```bash
+pytest tests/eval/eval_mode_classifier.py -v -s   # mode accuracy only
+pytest tests/eval/eval_retrieval.py -v -s          # retrieval quality only
+pytest tests/eval/eval_answer_quality.py -v -s     # answer quality only
+```
+
+**What each suite measures:**
+
+| Suite | Metric | Threshold |
+|---|---|---|
+| Mode classifier | Overall accuracy across 18 labeled queries | 85% |
+| Mode classifier | CHAT accuracy (pattern-matched queries) | 100% |
+| Mode classifier | PLAN accuracy (misclassification breaks artifact creation) | 90% |
+| Retrieval | Top-source hit rate (expected source in top-3) | 75% |
+| Retrieval | Precision@3 (fraction of top-3 from expected sources) | 50% |
+| Retrieval | Mean reranker relevance score | 6/10 |
+| Answer quality | Faithfulness (Gemini judge, 1-5 scale) | 4/5 |
+| Answer quality | Relevance (Gemini judge, 1-5 scale) | 4/5 |
+| Answer quality | Hallucination-free rate across demo queries | 67% |
+
+Suites skip cleanly when credentials are unavailable. All three require `GEMINI_API_KEY`; retrieval and answer quality also require `MONGODB_URI`.
 
 ---
 
