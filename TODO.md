@@ -200,6 +200,42 @@ should be limited.
 - Vercel: set `DEMO_MODE=true` on the public frontend deployment
 - Club URL: same backend, different frontend env or a separate Vercel deployment with `DEMO_MODE` unset
 
+### Drive Doc Dedup for PLAN Mode
+**Why:** Every PLAN query creates a new Google Doc even if one already exists for the same
+topic, cluttering the output folder and wasting API calls.
+
+**Desired behavior:** Before creating a new doc, search the Drive output folder for an
+existing file with a similar title. If one is found, return that hyperlink instead of
+creating a duplicate.
+
+**Implementation:**
+- `create_doc.py`: after building the doc title, call Drive `files.list` with a name
+  query against `DRIVE_OUTPUT_FOLDER_ID` before creating
+- If a match is found, return the existing file URL directly
+- If no match, proceed with creation as today
+- Fuzzy match on title (strip punctuation, lowercase compare) to catch near-duplicates
+
+---
+
+### PLAN Mode UX — Doc Viewer Side Panel
+**Why:** Currently the full markdown brief streams visibly into the chat before being
+replaced by a hyperlink. This looks broken and exposes an intermediate state the user
+should never see. The ideal UX mirrors Claude Artifacts — a side panel with the full
+content, a download button, and a clean link in chat.
+
+**Desired behavior:**
+- Chat shows only a short confirmation line when PLAN completes, no markdown wall
+- A slide-in side panel renders the full doc content in markdown
+- Panel has a Download button (exports as .md or .txt) and a View in Drive link
+- Closing the panel collapses it back; reopening via a button on the message bubble
+
+**Implementation (~3-4 hours):**
+- `agent.py`: add a `brief_markdown` field to the done event (the raw answer text)
+- `ChatInterface.tsx`: add `DocPanel` component — slide-in right drawer
+- `MessageBubble.tsx`: for PLAN messages, replace streamed markdown with a single
+  "Planning brief ready" line + "Open Brief" button that triggers the panel
+- Download: `URL.createObjectURL(new Blob([brief_markdown]))` with `.md` extension
+
 ---
 
 ## Decisions Log
