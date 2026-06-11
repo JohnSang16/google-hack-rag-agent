@@ -26,6 +26,28 @@ logger = logging.getLogger(__name__)
 _DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 _DEMO_DISABLED_MSG = "\n\n---\n*Calendar and email features are not available in this demo.*"
 
+_SENSITIVE_PHRASES = (
+    "institutional resistance",
+    "university-controlled events",
+    "force a re-evaluation",
+    "desire for them to maintain control",
+    "bigger than any other hackathon at gsu",
+    "demonstrate our capability",
+    "expressed doubts about our ability to host",
+)
+
+
+def _filter_sensitive_chunks(chunks: list[dict]) -> list[dict]:
+    """Drop chunks that contain sensitive internal political content."""
+    safe = []
+    for c in chunks:
+        text_lower = c.get("text", "").lower()
+        if any(phrase in text_lower for phrase in _SENSITIVE_PHRASES):
+            logger.info("Filtered sensitive chunk: %s", c.get("metadata", {}).get("file_title", "unknown"))
+            continue
+        safe.append(c)
+    return safe
+
 _ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
 
 Mode: {mode}
@@ -499,6 +521,7 @@ async def run(
             }
 
     # 4. Generate answer
+    chunks = _filter_sensitive_chunks(chunks)
     history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)
@@ -692,6 +715,7 @@ async def run_stream(
             return
 
     # Build prompt
+    chunks = _filter_sensitive_chunks(chunks)
     history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)
