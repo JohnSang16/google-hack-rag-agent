@@ -265,6 +265,26 @@ The bottleneck to institutional knowledge transfer in student organizations has 
 
 ---
 
+## Demo
+
+The live deployment at https://frontend-coral-mu-47.vercel.app runs with `DEMO_MODE=true`. This enables rate limiting and injection blocking, and disables integrations that require write access to external services.
+
+| Feature | Demo | Full deployment |
+|---|---|---|
+| Google Doc creation (PLAN mode) | On | On |
+| Google Calendar event creation | Off | On |
+| Gmail outreach email | Off | On |
+| Rate limiting (10 req/IP/min) | On | Off |
+| Injection blocking | On | Off |
+| Download brief as Markdown | On | On |
+| Copy response to clipboard | On | On |
+
+When Calendar or Gmail would have triggered in the demo (e.g. a PLAN query that says "add to calendar"), the response includes a note that those features are not available in this demo. All other PLAN functionality (retrieval, synthesis, Google Doc creation, side-panel viewer) works normally.
+
+To run without restrictions, deploy without setting `DEMO_MODE` (defaults to off).
+
+---
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

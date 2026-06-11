@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { CopyIcon, CheckIcon, FileTextIcon, CalendarIcon, MailCheckIcon, ExternalLinkIcon } from 'lucide-react';
+import { CopyIcon, CheckIcon, FileTextIcon, CalendarIcon, MailCheckIcon, ExternalLinkIcon, DownloadIcon } from 'lucide-react';
 import type { Message } from '../types';
 import CitationCard from './CitationCard';
 import { renderContent } from '../utils/renderMarkdown';
@@ -28,6 +28,23 @@ function CopyButton({ getTextFn }: { getTextFn: () => string }) {
   return (
     <button className="copy-btn" onClick={handleCopy} title="Copy to clipboard">
       {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+    </button>
+  );
+}
+
+function DownloadButton({ getTextFn, filename }: { getTextFn: () => string; filename: string }) {
+  function handleDownload() {
+    const blob = new Blob([getTextFn()], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  return (
+    <button className="copy-btn" onClick={handleDownload} title="Download as Markdown">
+      <DownloadIcon size={14} />
     </button>
   );
 }
@@ -115,8 +132,11 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '10px' }}>
         {message.citations.length > 0 && <CitationCard citations={message.citations} />}
-        {!streaming && !isPlan && (
-          <CopyButton getTextFn={() => bodyRef.current?.innerText ?? message.content} />
+        {!streaming && (
+          <CopyButton getTextFn={() => isPlan ? message.content : (bodyRef.current?.innerText ?? message.content)} />
+        )}
+        {!streaming && isPlan && (
+          <DownloadButton getTextFn={() => message.content} filename="planning-brief.md" />
         )}
       </div>
     </div>

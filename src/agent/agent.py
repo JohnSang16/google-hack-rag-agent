@@ -23,6 +23,9 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+_DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
+_DEMO_DISABLED_MSG = "\n\n---\n*Calendar and email features are not available in this demo.*"
+
 _ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
 
 Mode: {mode}
@@ -594,6 +597,11 @@ async def run_stream(
 
         plan_doc_url = (filters or {}).get("plan_doc_url", "")
         if plan_content:
+            if _DEMO_MODE:
+                msg = "Email sending is not available in this demo."
+                yield {"type": "token", "content": msg}
+                yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None, "gmail_draft_id": None, "gmail_draft_url": None, "calendar_event_url": None, "calendar_event_id": None, "calendar_event_start_date": None}
+                return
             try:
                 # Use Gemini to write a proper outreach email
                 email_prompt = _OUTREACH_EMAIL_PROMPT.format(
@@ -755,46 +763,55 @@ async def run_stream(
             logger.error("Google Doc creation failed: %s", e)
 
         if wants_calendar:
-            try:
-                heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
-                event_title = f"progsu: {heading_match.group(1).strip()[:60]}" if heading_match else f"progsu: {query[:60].rstrip()}"
-                cal_result = await asyncio.to_thread(
-                    create_calendar_event, title=event_title, description=summary, doc_url=created_doc_url
-                )
-                calendar_event_url = cal_result.get("html_link")
-                calendar_event_id = cal_result.get("event_id")
-                calendar_event_start_date = cal_result.get("start_date")
-            except Exception as e:
-                logger.error("Calendar event creation failed: %s", e)
+            if _DEMO_MODE:
+                logger.info("DEMO_MODE: skipping Calendar event creation")
+            else:
+                try:
+                    heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
+                    event_title = f"progsu: {heading_match.group(1).strip()[:60]}" if heading_match else f"progsu: {query[:60].rstrip()}"
+                    cal_result = await asyncio.to_thread(
+                        create_calendar_event, title=event_title, description=summary, doc_url=created_doc_url
+                    )
+                    calendar_event_url = cal_result.get("html_link")
+                    calendar_event_id = cal_result.get("event_id")
+                    calendar_event_start_date = cal_result.get("start_date")
+                except Exception as e:
+                    logger.error("Calendar event creation failed: %s", e)
 
         if wants_email and created_doc_url:
-            try:
-                email_prompt = _OUTREACH_EMAIL_PROMPT.format(
-                    recipient_context="sponsors",
-                    doc_url=created_doc_url,
-                    plan_content=full_answer[:3000],
-                )
-                email_response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model="gemini-2.5-flash",
-                    contents=email_prompt,
-                    config=genai.types.GenerateContentConfig(temperature=0.3, max_output_tokens=2048),
-                )
-                raw_email = email_response.text.strip()
-                lines = raw_email.split("\n", 2)
-                if lines[0].lower().startswith("subject:"):
-                    email_subject = lines[0][8:].strip()
-                    email_body = "\n".join(lines[1:]).lstrip("\n")
-                else:
-                    email_subject = "[progsu] Planning Brief"
-                    email_body = raw_email
-                draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
-                draft_id = draft_result.get("draft_id")
-                gmail_draft_url = draft_result.get("draft_url")
-                await asyncio.to_thread(send_gmail_draft, draft_id)
-                logger.info("Auto-sent email to sponsors: %s", email_subject)
-            except Exception as e:
-                logger.error("Auto-email failed: %s", e)
+            if _DEMO_MODE:
+                logger.info("DEMO_MODE: skipping Gmail draft/send")
+            else:
+                try:
+                    email_prompt = _OUTREACH_EMAIL_PROMPT.format(
+                        recipient_context="sponsors",
+                        doc_url=created_doc_url,
+                        plan_content=full_answer[:3000],
+                    )
+                    email_response = await asyncio.to_thread(
+                        client.models.generate_content,
+                        model="gemini-2.5-flash",
+                        contents=email_prompt,
+                        config=genai.types.GenerateContentConfig(temperature=0.3, max_output_tokens=2048),
+                    )
+                    raw_email = email_response.text.strip()
+                    lines = raw_email.split("\n", 2)
+                    if lines[0].lower().startswith("subject:"):
+                        email_subject = lines[0][8:].strip()
+                        email_body = "\n".join(lines[1:]).lstrip("\n")
+                    else:
+                        email_subject = "[progsu] Planning Brief"
+                        email_body = raw_email
+                    draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
+                    draft_id = draft_result.get("draft_id")
+                    gmail_draft_url = draft_result.get("draft_url")
+                    await asyncio.to_thread(send_gmail_draft, draft_id)
+                    logger.info("Auto-sent email to sponsors: %s", email_subject)
+                except Exception as e:
+                    logger.error("Auto-email failed: %s", e)
+
+        if _DEMO_MODE and (wants_calendar or (wants_email and created_doc_url)):
+            full_answer += _DEMO_DISABLED_MSG
 
         logger.info("PLAN artifacts: doc=%s cal=%s email=%s", created_doc_url, calendar_event_url, bool(wants_email))
 
