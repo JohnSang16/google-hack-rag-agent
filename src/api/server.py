@@ -16,8 +16,19 @@ from src.agent import agent as _agent
 _response_cache: dict[str, dict] = {}
 _CACHE_MAX_SIZE = 100
 
+# Artifact URLs from live PLAN runs — persists across cache/clears so buttons
+# don't disappear when the frontend reloads and calls /cache/clear.
+_LIVE_ARTIFACTS: dict[str, dict] = {}
+
+_ARTIFACT_FIELDS = (
+    "created_doc_url", "calendar_event_url", "calendar_event_id",
+    "calendar_event_start_date", "gmail_draft_id", "gmail_draft_url",
+)
+
 # Demo seeds — pre-canned responses that survive cache/clear so the demo always
 # returns the same output for the recorded queries regardless of live retrieval.
+# PLAN seed has no artifact URLs; those come from the first live run and are
+# preserved in _LIVE_ARTIFACTS so they survive subsequent cache clears.
 _DEMO_SEEDS: dict[str, dict] = {
     # RECALL — Q1
     "What were the key logistics challenges at Hacklanta and how did we solve them?": {
@@ -233,7 +244,16 @@ _DEMO_SEEDS: dict[str, dict] = {
 def _apply_demo_seeds() -> None:
     for query, value in _DEMO_SEEDS.items():
         key = _cache_key(query, None)
-        _response_cache[key] = value
+        entry = {**value}
+        live = _LIVE_ARTIFACTS.get(query, {})
+        # Merge in any live artifact URLs preserved from a previous real run
+        if live:
+            entry.update(live)
+        elif value.get("mode") == "PLAN":
+            # No live artifacts yet — skip the PLAN seed so the next call goes
+            # live and creates real Drive/Calendar/Gmail artifacts.
+            continue
+        _response_cache[key] = entry
 
 
 def _cache_key(query: str, filters: Optional[dict]) -> str:
@@ -317,7 +337,7 @@ async def health():
 @app.on_event("startup")
 async def startup():
     _apply_demo_seeds()
-    logger.info("Demo seeds loaded into cache (%d entries)", len(_DEMO_SEEDS))
+    logger.info("Demo seeds loaded into cache (%d of %d — PLAN skipped until live run)", len(_response_cache), len(_DEMO_SEEDS))
 
 
 @app.post("/cache/clear")
@@ -386,7 +406,7 @@ async def chat_stream(request: ChatRequest):
             return
 
         if done_event:
-            _cache_set(cache_key, {
+            entry = {
                 "mode": done_event.get("mode", "RECALL"),
                 "answer": full_answer,
                 "summary": done_event.get("summary"),
@@ -397,7 +417,13 @@ async def chat_stream(request: ChatRequest):
                 "calendar_event_start_date": done_event.get("calendar_event_start_date"),
                 "gmail_draft_id": done_event.get("gmail_draft_id"),
                 "gmail_draft_url": done_event.get("gmail_draft_url"),
-            })
+            }
+            _cache_set(cache_key, entry)
+            # Persist any real artifact URLs so they survive future cache/clears
+            artifacts = {f: entry[f] for f in _ARTIFACT_FIELDS if entry.get(f)}
+            if artifacts and request.query.strip() in _DEMO_SEEDS:
+                _LIVE_ARTIFACTS[request.query.strip()] = artifacts
+                logger.info("Live artifacts saved for demo query: %s", request.query[:60])
 
     return StreamingResponse(
         generate(),
