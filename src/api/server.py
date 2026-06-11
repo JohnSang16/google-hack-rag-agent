@@ -147,7 +147,7 @@ async def chat_stream(request: ChatRequest):
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
             return
 
-        if done_event:
+        if done_event and done_event.get("mode") != "PLAN":
             _cache_set(cache_key, {
                 "mode": done_event.get("mode", "RECALL"),
                 "answer": full_answer,

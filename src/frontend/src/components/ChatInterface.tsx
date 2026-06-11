@@ -9,39 +9,45 @@ const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const LOADING_MESSAGES = [
   'cooking…', 'locking in…', 'rizzing…', 'try-harding…', 'let him cook…',
   'i like ya cut g…', 'ouu shii…', 'we do a lil trollin…', 'chud maxxing…',
-  'working hard or hardly working?…', 'big spoon or little spoon?…', 'dariaaaahhh…',
+  'working hard or hardly working?…', 'big spoon or little spoon?…', 'js…', 'js + js…',
 ];
 
-const OUU_SHII_INDEX = LOADING_MESSAGES.indexOf('ouu shii…');
 const FYM_MESSAGE = 'fym ouu shii?…';
 
 function TypingIndicator() {
-  const [index, setIndex] = useState(0);
+  const [text, setText] = useState(LOADING_MESSAGES[0]);
   const [visible, setVisible] = useState(true);
-  const pendingFym = useRef(false);
+  const lastTextRef = useRef(LOADING_MESSAGES[0]);
+  const nextForcedRef = useRef<string | null>(null);
+
   useEffect(() => {
     const fade = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setIndex((prev) => {
-          if (pendingFym.current) {
-            pendingFym.current = false;
-            return -1; // sentinel for fym
-          }
-          let next;
-          do { next = Math.floor(Math.random() * LOADING_MESSAGES.length); } while (next === prev);
-          if (next === OUU_SHII_INDEX) pendingFym.current = true;
-          return next;
-        });
+        let next: string;
+        if (nextForcedRef.current !== null) {
+          next = nextForcedRef.current;
+          nextForcedRef.current = null;
+        } else {
+          let pick: string;
+          do {
+            pick = LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
+          } while (pick === lastTextRef.current);
+          next = pick;
+          if (next === 'ouu shii…') nextForcedRef.current = FYM_MESSAGE;
+        }
+        lastTextRef.current = next;
+        setText(next);
         setVisible(true);
       }, 300);
     }, 2000);
     return () => clearInterval(fade);
   }, []);
+
   return (
     <div className="bubble bubble--typing">
       <span className="typing-text" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
-        {index === -1 ? FYM_MESSAGE : LOADING_MESSAGES[index]}
+        {text}
       </span>
       <div className="typing"><span /><span /><span /></div>
     </div>
@@ -62,6 +68,10 @@ export default function ChatInterface() {
   const [latestPlanDocUrl, setLatestPlanDocUrl] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/cache/clear`, { method: 'POST' }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
