@@ -15,7 +15,13 @@ from pydantic import BaseModel
 
 from src.agent import agent as _agent
 
-# --- Demo guardrails ---
+load_dotenv()
+
+# DEMO_MODE=true enables public guardrails (off-topic filter, sensitive query block,
+# rate limiting). Leave unset or false for internal club use — full access, no restrictions.
+_DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
+
+# --- Demo guardrails (only active when DEMO_MODE=true) ---
 _RATE_LIMIT_WINDOW = 60   # seconds
 _RATE_LIMIT_MAX = 10      # requests per IP per window
 _MAX_QUERY_LEN = 400
@@ -347,8 +353,6 @@ def _cache_set(key: str, value: dict) -> None:
         _response_cache.pop(next(iter(_response_cache)))
     _response_cache[key] = value
 
-load_dotenv()
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -431,20 +435,22 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=400, detail="query must not be empty")
 
     ip = _get_client_ip(http_request)
-    if not _check_rate_limit(ip):
-        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
-    guard_err = _check_query(request.query.strip())
-    if guard_err:
-        raise HTTPException(status_code=400, detail=guard_err)
+    if _DEMO_MODE:
+        if not _check_rate_limit(ip):
+            raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
-    if _is_off_topic(request.query.strip()):
-        logger.info("Off-topic query from %s: %s", ip, request.query[:60])
-        async def _notice_stream():
-            yield f"data: {json.dumps({'type': 'mode', 'mode': 'CHAT'})}\n\n"
-            yield f"data: {json.dumps({'type': 'token', 'content': _PUBLIC_NOTICE})}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'mode': 'CHAT', 'answer': _PUBLIC_NOTICE, 'citations': [], 'created_doc_url': None, 'summary': None})}\n\n"
-        return StreamingResponse(_notice_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        guard_err = _check_query(request.query.strip())
+        if guard_err:
+            raise HTTPException(status_code=400, detail=guard_err)
+
+        if _is_off_topic(request.query.strip()):
+            logger.info("Off-topic query from %s: %s", ip, request.query[:60])
+            async def _notice_stream():
+                yield f"data: {json.dumps({'type': 'mode', 'mode': 'CHAT'})}\n\n"
+                yield f"data: {json.dumps({'type': 'token', 'content': _PUBLIC_NOTICE})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'mode': 'CHAT', 'answer': _PUBLIC_NOTICE, 'citations': [], 'created_doc_url': None, 'summary': None})}\n\n"
+            return StreamingResponse(_notice_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
