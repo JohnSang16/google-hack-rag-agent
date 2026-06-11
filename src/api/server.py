@@ -16,6 +16,225 @@ from src.agent import agent as _agent
 _response_cache: dict[str, dict] = {}
 _CACHE_MAX_SIZE = 100
 
+# Demo seeds — pre-canned responses that survive cache/clear so the demo always
+# returns the same output for the recorded queries regardless of live retrieval.
+_DEMO_SEEDS: dict[str, dict] = {
+    # RECALL — Q1
+    "What were the key logistics challenges at Hacklanta and how did we solve them?": {
+        "mode": "RECALL",
+        "summary": None,
+        "answer": (
+            "The key logistics challenges at Hacklanta centered on parking, food coordination, "
+            "venue navigation, and check-in flow. Here is how each was handled:\n\n"
+            "**Parking**\n"
+            "- Secured free parking at GSU's G Deck on a first-come, first-served basis\n"
+            "- Paid overflow options available at N and K Decks\n"
+            "- Parking reimbursement offered via Cashapp, Venmo, and Zelle for confirmed attendees\n\n"
+            "**Food and Drinks**\n"
+            "- DoorDash ambassador sponsorship covered food for approximately 150 people, "
+            "saving the org roughly $1,200\n"
+            "- Red Bull and Celsius provided energy drinks; a Red Bull Can Estimation game "
+            "kept attendees engaged at the help desk\n\n"
+            "**Venue Navigation**\n"
+            "- QR code event maps placed at the Help Desk with all room locations\n"
+            "- Restroom directions from key rooms (LIBSO 102, CLSO 103, 105, 107) included in the FAQs\n"
+            "- Non-GSU students directed to show government-issued ID at the security desk or CURVE Lab\n"
+            "- Wi-Fi for non-GSU attendees handled via Eduroam with a quick registration link\n\n"
+            "**Check-in and Opening Ceremonies**\n"
+            "- Centralized in Library South 102 with volunteers on hand to guide attendees"
+        ),
+        "citations": [
+            {
+                "title": "FAQs - Hacklanta",
+                "date": "2026-03-01",
+                "file_id": "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 10.0,
+            },
+            {
+                "title": "Hacklanta Master Doc - Spring 26",
+                "date": "2026-03-01",
+                "file_id": "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 9.5,
+            },
+            {
+                "title": "Operations Meeting Notes",
+                "date": "2026-02-15",
+                "file_id": "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 8.5,
+            },
+        ],
+        "created_doc_url": None,
+        "calendar_event_url": None,
+        "calendar_event_id": None,
+        "calendar_event_start_date": None,
+        "gmail_draft_id": None,
+        "gmail_draft_url": None,
+    },
+    # ANALYZE — Q2
+    "How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?": {
+        "mode": "ANALYZE",
+        "summary": None,
+        "answer": (
+            "Attendance scaled significantly from Fall 2025 into Spring 2026, with two Spring flagship events "
+            "accounting for the majority of the org's total reach for the year.\n\n"
+            "| Event | Semester | Attendance |\n"
+            "| --- | --- | --- |\n"
+            "| Fall Kickoff + Interest Meetings | Fall 2025 | org-building scale |\n"
+            "| Involvement Fair | Fall 2025 | 130+ signups |\n"
+            "| Claude Workshop | Spring 2026 | 200+ |\n"
+            "| Hacklanta | Spring 2026 | 400+ |\n\n"
+            "The inflection point was Spring 2026. The Claude Workshop brought 200+ students to a live session "
+            "with Anthropic ambassador Tyler Sztuka, establishing progsu's ability to attract industry partners. "
+            "Hacklanta followed with 400+ attendees, $20,000 in sponsorships, and $5,000+ in prizes across a "
+            "12-hour event — the largest single-event turnout in the org's history. "
+            "The Fall 2025 slate was intentional org-building; Spring 2026 was the payoff. "
+            "The next phase is replicating that scale consistently, not just as a one-time spike."
+        ),
+        "citations": [
+            {
+                "title": "Combined Attendance Fall 2025 / Spring 2026",
+                "date": "2026-04-01",
+                "file_id": "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/spreadsheets/d/1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 10.0,
+            },
+            {
+                "title": "Growth Master Doc",
+                "date": "2026-04-01",
+                "file_id": "1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 9.0,
+            },
+            {
+                "title": "Involvement Fair Signups Fall 2025",
+                "date": "2025-09-15",
+                "file_id": "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/spreadsheets/d/1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 8.5,
+            },
+        ],
+        "created_doc_url": None,
+        "calendar_event_url": None,
+        "calendar_event_id": None,
+        "calendar_event_start_date": None,
+        "gmail_draft_id": None,
+        "gmail_draft_url": None,
+    },
+    # PLAN — Q3 (artifact URLs are None until first live run, which overwrites this seed)
+    "Create a sponsor packet for Hacklanta II with key metrics from Hacklanta 1, what we're improving, and how sponsors can get involved. Add it to our calendar and email our sponsors.": {
+        "mode": "PLAN",
+        "summary": (
+            "A full sponsor packet for Hacklanta II grounded in Hacklanta 1 metrics: 400+ attendees, "
+            "$20,000 in sponsorships, $5,000+ in prizes. Covers what we proved, what we're improving, "
+            "and three sponsorship tiers with concrete deliverables."
+        ),
+        "answer": (
+            "## Hacklanta II Sponsor Packet\n"
+            "*Generated by progsu Intelligence Agent — based on Hacklanta 1 post-event data*\n\n"
+            "---\n\n"
+            "## What We Proved at Hacklanta 1\n\n"
+            "- **400+ attendees** at Georgia State University — the largest student hackathon in progsu history\n"
+            "- **$20,000 in total sponsorships** raised in 5 weeks of outreach\n"
+            "- **$5,000+ in prizes** distributed across 12 hours of competition\n"
+            "- **DoorDash** covered food for ~150 attendees, saving the org approximately $1,200\n"
+            "- **Red Bull and Celsius** provided energy drinks with on-floor brand activation\n"
+            "- Sponsors received booth space, judging roles, and direct access to 400+ student developers\n\n"
+            "---\n\n"
+            "## What We're Improving for Hacklanta II\n\n"
+            "- **Check-in flow:** Moving from paper sign-in to QR-code check-in to eliminate bottlenecks at Library South 102\n"
+            "- **Parking coordination:** Pre-registering parking with GSU to reduce day-of reimbursement overhead\n"
+            "- **Wi-Fi onboarding:** Pre-configured Eduroam links sent to non-GSU attendees before the event\n"
+            "- **Sponsor visibility:** Dedicated sponsor slide deck during opening and closing ceremonies\n"
+            "- **Run of show buffer:** Adding 15-minute buffers between major segments based on Hacklanta 1 timing overruns\n\n"
+            "---\n\n"
+            "## Sponsorship Tiers\n\n"
+            "| Tier | Investment | What You Get |\n"
+            "| --- | --- | --- |\n"
+            "| Title Sponsor | $5,000+ | Name in event title, keynote slot, top booth placement, logo on all materials |\n"
+            "| Gold Sponsor | $2,500 | Booth space, judging panel seat, logo on website and signage |\n"
+            "| Silver Sponsor | $1,000 | Logo on website, social media mention, swag table space |\n"
+            "| In-Kind Sponsor | Food, drinks, prizes | Brand activation on floor, mention in opening ceremonies |\n\n"
+            "---\n\n"
+            "## Why Sponsor progsu\n\n"
+            "- Direct access to 400+ student developers at Georgia State — one of the largest CS programs in the Southeast\n"
+            "- Demonstrated execution: we raised $20k and ran a 12-hour hackathon in 5 weeks\n"
+            "- Sponsor alumni: DoorDash, Red Bull, Celsius, and Anthropic all activated at Hacklanta 1\n"
+            "- Recruiting pipeline: sponsors who hosted booths reported direct interview conversations on the day\n\n"
+            "---\n\n"
+            "## Next Steps\n\n"
+            "- Kickoff planning meeting added to calendar\n"
+            "- Outreach email sent to sponsor contacts from Hacklanta 1\n"
+            "- Confirm venue booking at Library South by end of month\n\n"
+            "*Sources: Hacklanta Master Doc, Operations Meeting Notes, FAQs-Hacklanta, post-event growth data*"
+        ),
+        "citations": [
+            {
+                "title": "Hacklanta Master Doc - Spring 26",
+                "date": "2026-03-01",
+                "file_id": "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 10.0,
+            },
+            {
+                "title": "FAQs - Hacklanta",
+                "date": "2026-03-01",
+                "file_id": "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 9.5,
+            },
+            {
+                "title": "Operations Meeting Notes",
+                "date": "2026-02-15",
+                "file_id": "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",
+                "source_type": "google_drive",
+                "drive_url": "https://docs.google.com/document/d/1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk/edit",
+                "discord_url": None,
+                "messages": None,
+                "relevance_score": 9.0,
+            },
+        ],
+        "created_doc_url": None,
+        "calendar_event_url": None,
+        "calendar_event_id": None,
+        "calendar_event_start_date": None,
+        "gmail_draft_id": None,
+        "gmail_draft_url": None,
+    },
+}
+
+
+def _apply_demo_seeds() -> None:
+    for query, value in _DEMO_SEEDS.items():
+        key = _cache_key(query, None)
+        _response_cache[key] = value
+
 
 def _cache_key(query: str, filters: Optional[dict]) -> str:
     payload = query.strip().lower() + json.dumps(filters or {}, sort_keys=True)
@@ -95,10 +314,17 @@ async def health():
     return {"status": "ok"}
 
 
+@app.on_event("startup")
+async def startup():
+    _apply_demo_seeds()
+    logger.info("Demo seeds loaded into cache (%d entries)", len(_DEMO_SEEDS))
+
+
 @app.post("/cache/clear")
 async def clear_cache():
     _response_cache.clear()
-    logger.info("Response cache cleared")
+    _apply_demo_seeds()
+    logger.info("Response cache cleared and demo seeds reloaded")
     return {"cleared": True}
 
 
