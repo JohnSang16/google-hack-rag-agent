@@ -3,16 +3,60 @@ import hashlib
 import json
 import logging
 import os
+import time
+from collections import defaultdict
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.agent import agent as _agent
 
+# --- Demo guardrails ---
+_RATE_LIMIT_WINDOW = 60   # seconds
+_RATE_LIMIT_MAX = 10      # requests per IP per window
+_MAX_QUERY_LEN = 400
+
+_rate_tracker: dict[str, list[float]] = defaultdict(list)
+
+_BLOCKED_PATTERNS = [
+    "ignore previous", "ignore all instructions", "forget your instructions",
+    "override", "jailbreak", "dan mode", "act as", "pretend you are",
+    "system prompt", "sql injection", "drop table", "<script", "prompt injection",
+]
+
+
+def _get_client_ip(req: Request) -> str:
+    forwarded = req.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return req.client.host if req.client else "unknown"
+
+
+def _check_rate_limit(ip: str) -> bool:
+    now = time.time()
+    window_start = now - _RATE_LIMIT_WINDOW
+    _rate_tracker[ip] = [t for t in _rate_tracker[ip] if t > window_start]
+    if len(_rate_tracker[ip]) >= _RATE_LIMIT_MAX:
+        return False
+    _rate_tracker[ip].append(now)
+    return True
+
+
+def _check_query(query: str) -> Optional[str]:
+    if len(query) > _MAX_QUERY_LEN:
+        return f"Query too long. Demo limit is {_MAX_QUERY_LEN} characters."
+    q = query.lower()
+    for pattern in _BLOCKED_PATTERNS:
+        if pattern in q:
+            return "That query isn't supported in the demo."
+    return None
+
+
+# --- Response cache ---
 _response_cache: dict[str, dict] = {}
 _CACHE_MAX_SIZE = 100
 
@@ -354,9 +398,17 @@ async def clear_cache():
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, http_request: Request):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
+
+    ip = _get_client_ip(http_request)
+    if not _check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+
+    guard_err = _check_query(request.query.strip())
+    if guard_err:
+        raise HTTPException(status_code=400, detail=guard_err)
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
@@ -439,9 +491,17 @@ async def chat_stream(request: ChatRequest):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
+
+    ip = _get_client_ip(http_request)
+    if not _check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+
+    guard_err = _check_query(request.query.strip())
+    if guard_err:
+        raise HTTPException(status_code=400, detail=guard_err)
 
     logger.info("POST /chat: %s", request.query[:80])
 
