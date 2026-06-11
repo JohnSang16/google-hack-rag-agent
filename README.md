@@ -18,13 +18,14 @@ progsu (ProgClub at Georgia State University) ran a $20,000-sponsored hackathon,
 
 ## What It Does
 
-Three query modes, each more powerful than the last:
+Four query modes, each matched to a different leadership need:
 
+- **CHAT** Conversational questions, capability discovery, and small talk. No retrieval needed.
 - **RECALL** "What happened at X?" Retrieves grounded, cited answers from actual org documents.
 - **ANALYZE** "How have our metrics trended?" Synthesizes across multiple sources, surfacing real numbers and trends.
-- **PLAN** "Help plan X." Retrieves, synthesizes, and creates a real Google Doc in Drive. Not just an answer. An artifact.
+- **PLAN** "Help plan X." Retrieves, synthesizes, and produces a full sponsor packet: a Google Doc in Drive, a Gemini-drafted outreach email, and a Google Calendar event. Not just an answer. A complete set of artifacts.
 
-Every answer includes citations: source name, date, and a direct Drive link.
+Every RECALL and ANALYZE answer includes citations: source name, date, and a direct Drive link. PLAN mode shows a side panel with the full Google Doc inline.
 
 ---
 
@@ -32,14 +33,15 @@ Every answer includes citations: source name, date, and a direct Drive link.
 
 | Layer | Technology |
 |---|---|
-| LLM + Embeddings | Gemini 2.0 Flash + text-embedding-004 |
+| LLM + Embeddings | Gemini 2.5 Flash + text-embedding-004 |
 | Agent Orchestration | Google Cloud Agent Builder (Vertex AI) |
 | Vector + Document Store | MongoDB Atlas with Atlas Vector Search |
 | Agent-to-DB Bridge | MongoDB MCP Server |
 | Drive Integration | Google Drive API v3 + Google Docs API |
+| Calendar + Gmail | Google Calendar API v3 + Gmail API v1 |
 | Discord Ingestion | Discord export parser with Gemini noise filter |
-| Backend | Python 3.11 / FastAPI on Cloud Run |
-| Frontend | React + Vite + TypeScript on Vercel |
+| Backend | Python 3.11 / FastAPI on Cloud Run (streaming SSE) |
+| Frontend | React + Vite + TypeScript + Tailwind v4 on Vercel |
 
 ---
 
@@ -47,16 +49,19 @@ Every answer includes citations: source name, date, and a direct Drive link.
 
 ```
 User query
-  → mode classifier (Gemini)
+  → mode classifier (Gemini 2.5 Flash)
+  → if CHAT: answer directly, no retrieval
   → metadata pre-filter (date, event, team, doc_type)
   → MongoDB Atlas vector search (top-k=10)
   → reranker (Gemini scores all 10 chunks in one call, keeps top-3)
-  → Gemini agent reasons over chunks
-  → response with citations [source_name, date, drive_link]
-  → if PLAN mode: create_google_doc() via Drive + Docs API
+  → Gemini agent streams response with citations [source_name, date, drive_link]
+  → if PLAN mode:
+      create_google_doc() via Drive + Docs API
+      create_calendar_event() via Google Calendar API
+      send_gmail() drafts outreach email via Gmail API
 ```
 
-Mode classification and retrieval run in parallel to minimize latency.
+Mode classification and retrieval run in parallel. Responses stream token by token via SSE. PLAN mode skips the response cache so every planning request produces a fresh artifact.
 
 ---
 
@@ -80,13 +85,13 @@ Every chunk passes a Gemini YES/NO noise filter before storage. PII is stripped 
 
 ## Performance
 
-After batching the reranker from 10 sequential Gemini calls to 1:
+With batched reranker (10 chunks scored in one Gemini call) and streaming:
 
 | Query | Mode | Latency | Citations |
 |---|---|---|---|
 | "What were the key logistics challenges at Hacklanta?" | RECALL | ~25s | FAQs-Hacklanta, Operations Meeting Notes, Discord #hacklanta |
 | "How has event attendance grown from Fall 2025 to Spring 2026?" | ANALYZE | ~15s | Combined Attendance, Involvement Fair Signups |
-| "Draft a planning brief for our next major hackathon." | PLAN | ~38s + Google Doc created | Discord #hacklanta, Operations Meeting Notes |
+| "Draft a planning brief for our next major hackathon." | PLAN | ~38s + Google Doc, Calendar event, outreach email | Discord #hacklanta, Operations Meeting Notes |
 
 ---
 
@@ -111,21 +116,28 @@ src/
     reranker.py              batched Gemini reranking of top-k results
     retriever.py             combines search + rerank
   agent/
-    mode_classifier.py       classifies query as RECALL / ANALYZE / PLAN
-    agent.py                 Gemini agent with parallel mode classification + retrieval
+    mode_classifier.py       classifies query as CHAT / RECALL / ANALYZE / PLAN
+    agent.py                 Gemini agent with parallel mode classification + retrieval, streaming
     tools/
       retrieve.py            retrieval tool
       create_doc.py          creates Google Doc in Drive
+      create_calendar_event.py  creates Calendar event via Google Calendar API
+      send_gmail.py          drafts and optionally sends outreach email via Gmail API
   api/
-    server.py                FastAPI, POST /chat + GET /health
+    server.py                FastAPI, POST /chat (SSE stream) + GET /health + POST /clear-cache
   frontend/
     src/
       App.tsx
       components/
-        ChatInterface.tsx     main chat container
-        MessageBubble.tsx     user/agent messages with inline markdown
-        ModeSelector.tsx      RECALL/ANALYZE/PLAN legend strip
+        ChatInterface.tsx     main chat container with demo query chips
+        MessageBubble.tsx     user/agent messages with inline markdown rendering
+        ModeSelector.tsx      CHAT/RECALL/ANALYZE/PLAN legend strip
         CitationCard.tsx      collapsible source cards with Drive links
+        DocPanel.tsx          slide-in side panel showing Google Doc content for PLAN mode
+        ui/
+          claude-style-chat-input.tsx  stop-capable chat input with attachment affordance
+      utils/
+        renderMarkdown.tsx   plain-text extraction for copy-to-clipboard
 tests/
   eval/                      evaluation pipeline for retrieval quality + hallucination detection
 docs/
@@ -158,6 +170,7 @@ MONGODB_COLLECTION=chunks
 GOOGLE_DRIVE_CREDENTIALS=     # path to service account JSON
 DRIVE_INGESTION_FOLDER_ID=    # Drive folder to read source docs from
 DRIVE_OUTPUT_FOLDER_ID=       # Drive folder where PLAN mode drops generated docs
+GOOGLE_CALENDAR_ID=           # Calendar ID for PLAN mode event creation
 GCP_PROJECT_ID=
 GCP_REGION=us-central1
 ```
