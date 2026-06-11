@@ -181,6 +181,8 @@ body {
 .msg__para  { margin: 0 0 10px; }
 .msg__para:last-child { margin-bottom: 0; }
 .msg__heading { font-size: 15px; font-weight: 600; margin: 14px 0 5px; color: var(--text-100); }
+.msg__heading--sub { font-size: 13px; font-weight: 600; color: var(--text-200); margin: 10px 0 4px; }
+.msg__hr { border: none; border-top: 1px solid var(--bg-300); margin: 12px 0; }
 .msg__list { list-style-type: disc; margin: 0 0 10px; padding-left: 20px; }
 .msg__list li { margin-bottom: 4px; }
 
@@ -342,6 +344,8 @@ body {
 }
 .doc-panel__content { font-size: 14px; line-height: 1.75; color: var(--text-200); }
 .doc-panel__content .msg__heading { font-size: 15px; margin: 20px 0 8px; }
+.doc-panel__content .msg__heading--sub { font-size: 13px; margin: 14px 0 6px; }
+.doc-panel__content .msg__hr { margin: 16px 0; }
 .doc-panel__content .msg__para { margin: 0 0 10px; }
 .doc-panel__content .msg__list { margin: 0 0 10px; padding-left: 18px; }
 .doc-panel__content .msg__table-wrap { overflow-x: auto; margin-bottom: 12px; }

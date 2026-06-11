@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 
 export function renderInline(text: string): (ReactNode | string)[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/);
   return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_'))) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
     }
     return part;
   });
@@ -33,12 +34,11 @@ export function renderContent(text: string): ReactNode[] {
   return blocks.map((block, i) => {
     const lines = block.split('\n');
 
-    if (block.startsWith('## ')) {
-      return <h3 key={i} className="msg__heading">{renderInline(block.slice(3))}</h3>;
-    }
-    if (block.startsWith('# ')) {
-      return <h3 key={i} className="msg__heading">{renderInline(block.slice(2))}</h3>;
-    }
+    if (block.startsWith('#### ')) return <h4 key={i} className="msg__heading msg__heading--sub">{renderInline(block.slice(5))}</h4>;
+    if (block.startsWith('### '))  return <h4 key={i} className="msg__heading msg__heading--sub">{renderInline(block.slice(4))}</h4>;
+    if (block.startsWith('## '))   return <h3 key={i} className="msg__heading">{renderInline(block.slice(3))}</h3>;
+    if (block.startsWith('# '))    return <h3 key={i} className="msg__heading">{renderInline(block.slice(2))}</h3>;
+    if (block.trim() === '---' || block.trim() === '***') return <hr key={i} className="msg__hr" />;
 
     const tableLines = lines.filter((l) => l.trim().startsWith('|'));
     if (tableLines.length >= 2 && tableLines.length >= lines.length - 1) {
