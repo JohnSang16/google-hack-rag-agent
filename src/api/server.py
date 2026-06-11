@@ -112,20 +112,32 @@ async def chat_stream(request: ChatRequest):
     cache_key = _cache_key(request.query, request.filters)
     cached = _cache_get(cache_key)
 
+    # Per-mode cache replay config — spinner_delay matches demo script slot timing,
+    # chunk config controls how fast the answer streams in after the spinner clears.
+    _CACHE_CONFIG = {
+        "CHAT":    {"spinner_delay": 0.5,  "chunk_delay": 0.02, "chunk_size": 6},
+        "RECALL":  {"spinner_delay": 1.8,  "chunk_delay": 0.03, "chunk_size": 4},
+        "ANALYZE": {"spinner_delay": 8.0,  "chunk_delay": 0.06, "chunk_size": 3},
+        "PLAN":    {"spinner_delay": 10.0, "chunk_delay": 0.07, "chunk_size": 3},
+    }
+
     async def generate():
         if cached:
             logger.info("Cache hit (stream): %s", request.query[:60])
-            # Simulate real streaming so demo recordings look authentic
-            await asyncio.sleep(1.8)
-            yield f"data: {json.dumps({'type': 'mode', 'mode': cached['mode']})}\n\n"
+            mode = cached["mode"]
+            cfg = _CACHE_CONFIG.get(mode, _CACHE_CONFIG["RECALL"])
+            # Send mode immediately so the frontend can switch to scripted spinner messages.
+            yield f"data: {json.dumps({'type': 'mode', 'mode': mode})}\n\n"
+            # Hold for the scripted spinner duration before streaming the answer.
+            await asyncio.sleep(cfg["spinner_delay"])
             words = cached["answer"].split(" ")
-            chunk_size = 4
+            chunk_size = cfg["chunk_size"]
             for i in range(0, len(words), chunk_size):
                 chunk = " ".join(words[i:i + chunk_size])
                 if i + chunk_size < len(words):
                     chunk += " "
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
-                await asyncio.sleep(0.03)
+                await asyncio.sleep(cfg["chunk_delay"])
             yield f"data: {json.dumps({'type': 'done', **{k: v for k, v in cached.items() if k != 'citations'}, 'citations': cached.get('citations', [])})}\n\n"
             return
 
@@ -147,7 +159,7 @@ async def chat_stream(request: ChatRequest):
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
             return
 
-        if done_event and done_event.get("mode") != "PLAN":
+        if done_event:
             _cache_set(cache_key, {
                 "mode": done_event.get("mode", "RECALL"),
                 "answer": full_answer,

@@ -14,13 +14,50 @@ const LOADING_MESSAGES = [
 
 const FYM_MESSAGE = 'fym ouu shii?…';
 
-function TypingIndicator() {
-  const [text, setText] = useState(LOADING_MESSAGES[0]);
+// Scripted spinner messages for demo modes — shown in sequence, timed to the demo script.
+const ANALYZE_SPINNER = [
+  'Searching Fall 2025 event records…',
+  'Pulling Spring 2026 attendance data…',
+  'Cross-referencing sources…',
+  'Identifying what drove growth…',
+];
+
+const PLAN_SPINNER = [
+  'Pulling Hacklanta learnings…',
+  'Reviewing run of show and logistics…',
+  'Drafting Hacklanta II recommendations…',
+  'Building sponsorship strategy…',
+  'Assembling your planning brief…',
+];
+
+function TypingIndicator({ mode }: { mode: string | null }) {
+  const scripted = mode === 'ANALYZE' ? ANALYZE_SPINNER : mode === 'PLAN' ? PLAN_SPINNER : null;
+
+  const [text, setText] = useState(scripted ? scripted[0] : LOADING_MESSAGES[0]);
   const [visible, setVisible] = useState(true);
+  const indexRef = useRef(0);
   const lastTextRef = useRef(LOADING_MESSAGES[0]);
   const nextForcedRef = useRef<string | null>(null);
 
+  // Scripted sequence for ANALYZE / PLAN
   useEffect(() => {
+    if (!scripted) return;
+    setText(scripted[0]);
+    indexRef.current = 0;
+    const fade = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        indexRef.current = (indexRef.current + 1) % scripted.length;
+        setText(scripted[indexRef.current]);
+        setVisible(true);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(fade);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Random fun messages for RECALL / CHAT / unknown
+  useEffect(() => {
+    if (scripted) return;
     const fade = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
@@ -42,7 +79,7 @@ function TypingIndicator() {
       }, 300);
     }, 2000);
     return () => clearInterval(fade);
-  }, []);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="bubble bubble--typing">
@@ -63,6 +100,7 @@ const SUGGESTIONS = [
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [panelMsg, setPanelMsg] = useState<AgentMessage | null>(null);
   const [latestPlanDocUrl, setLatestPlanDocUrl] = useState<string | null>(null);
@@ -80,6 +118,7 @@ export default function ChatInterface() {
   function handleStop() {
     abortControllerRef.current?.abort();
     setLoading(false);
+    setLoadingMode(null);
   }
 
   async function handleSendMessage(query: string, _model: string) { // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -131,6 +170,7 @@ export default function ChatInterface() {
           if (!line.startsWith('data: ')) continue;
           try {
             const ev = JSON.parse(line.slice(6));
+            if (ev.type === 'mode') setLoadingMode(ev.mode);
             if (ev.type === 'done' && ev.mode === 'PLAN' && ev.created_doc_url) {
               setLatestPlanDocUrl(ev.created_doc_url);
             }
@@ -174,6 +214,7 @@ export default function ChatInterface() {
       });
     } finally {
       setLoading(false);
+      setLoadingMode(null);
     }
   }
 
@@ -270,7 +311,7 @@ export default function ChatInterface() {
                 );
               })}
               {loading && (messages[messages.length - 1]?.role !== 'agent' || (messages[messages.length - 1] as { content: string }).content === '') && (
-                <TypingIndicator />
+                <TypingIndicator mode={loadingMode} />
               )}
               <div ref={bottomRef} />
             </div>
