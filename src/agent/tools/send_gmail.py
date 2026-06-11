@@ -29,52 +29,21 @@ OAUTH_TOKEN_FILE = next(
 
 DEFAULT_RECIPIENT = os.getenv("GMAIL_DEMO_RECIPIENT", "")
 
-# Acknowledgment prefixes that can precede a send command
-_ACK_PREFIXES = ["ok ", "okay ", "yes ", "sure ", "alright ", "looks good, ", "looks good. ", "perfect, "]
-
-# Imperative send phrases (matched after stripping any ack prefix)
-_SEND_STARTERS = [
-    "send it",
-    "send the email",
-    "send the draft",
-    "send the message",
-    "send that email",
-    "send that draft",
-    "go ahead and send",
-    "please send the email",
-    "please send the draft",
-]
+# Detects explicit "send [plan/this/brief] to [someone]" intent
+_SEND_TO_RE = re.compile(
+    r'\b(send|email|forward)\b.{0,60}\bto\b.{1,50}\b(sponsor|team|exec|club|email|member|lead|everyone|them)',
+    re.IGNORECASE,
+)
+_SEND_TARGET_RE = re.compile(
+    r'\b(send|email|forward)\b.{0,30}\b(sponsor|exec\s+team|club\s+members)',
+    re.IGNORECASE,
+)
 
 
-def is_send_email_intent(query: str) -> bool:
-    """Return True if the query is an imperative command to send the Gmail draft."""
-    q = query.strip().lower()
-    if not q:
-        return False
-
-    # Strip leading acknowledgment phrase
-    for prefix in _ACK_PREFIXES:
-        if q.startswith(prefix):
-            q = q[len(prefix):]
-            break
-
-    # Exact "send" after ack (e.g. "yes send")
-    if q in ("send", "send."):
-        return True
-
-    # Check send_starters
-    for phrase in _SEND_STARTERS:
-        if q.startswith(phrase):
-            return True
-
-    # After a comma: "looks good, send the email"
-    if "," in q:
-        after_comma = q.split(",", 1)[1].strip()
-        for phrase in _SEND_STARTERS:
-            if after_comma.startswith(phrase):
-                return True
-
-    return False
+def is_send_to_email_intent(query: str) -> bool:
+    """Return True if the user is explicitly asking to send a plan/brief to someone."""
+    q = query.strip()
+    return bool(_SEND_TO_RE.search(q) or _SEND_TARGET_RE.search(q))
 
 
 def _get_service():

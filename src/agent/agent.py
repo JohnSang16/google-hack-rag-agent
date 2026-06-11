@@ -16,7 +16,7 @@ from src.agent.tools.send_gmail import (
     create_gmail_draft,
     send_gmail_draft,
     build_plan_email_body,
-    is_send_email_intent,
+    is_send_to_email_intent,
 )
 
 load_dotenv()
@@ -544,18 +544,29 @@ async def run_stream(
         yield {"type": "done", "mode": "RECALL", "answer": _CLARIFICATION_ANSWER, "citations": [], "created_doc_url": None, "summary": None}
         return
 
-    # Send email intent: user is approving a draft created in a prior PLAN response
-    if is_send_email_intent(query) and filters and filters.get("gmail_draft_id"):
-        draft_id = filters["gmail_draft_id"]
+    # Explicit send-to-email intent: "send this to the sponsor email"
+    if is_send_to_email_intent(query):
         yield {"type": "mode", "mode": "CHAT"}
-        try:
-            await asyncio.to_thread(send_gmail_draft, draft_id)
-            msg = "Email sent. Check your Sent folder."
-        except Exception as e:
-            logger.error("Failed to send draft %s: %s", draft_id, e)
-            msg = f"Could not send the email: {e}"
+        last_agent_content = next(
+            (h["content"] for h in reversed(history or []) if h.get("role") == "agent"),
+            None,
+        )
+        if last_agent_content:
+            try:
+                email_subject = "[progsu] Planning Brief"
+                email_body = build_plan_email_body(query, last_agent_content[:1500], None, None)
+                draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
+                draft_id = draft_result.get("draft_id")
+                await asyncio.to_thread(send_gmail_draft, draft_id)
+                recipient = os.getenv("GMAIL_DEMO_RECIPIENT", "the recipient")
+                msg = f"Done. Email sent to {recipient}."
+            except Exception as e:
+                logger.error("Send-to-email failed: %s", e)
+                msg = f"Could not send the email: {e}"
+        else:
+            msg = "I don't have a recent plan to send. Draft a planning brief first, then ask me to send it."
         yield {"type": "token", "content": msg}
-        yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None, "gmail_draft_id": None}
+        yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None, "gmail_draft_id": None, "gmail_draft_url": None, "calendar_event_url": None, "calendar_event_id": None, "calendar_event_start_date": None}
         return
 
     # Fast CHAT path via regex (no retrieval needed)
@@ -699,21 +710,6 @@ async def run_stream(
                     )
                 except Exception:
                     pass  # Non-critical, event already created
-
-        # Step 2: Gmail draft with all links
-        email_body = build_plan_email_body(query, summary, created_doc_url, calendar_event_url)
-        email_subject = f"[progsu Agent] {query[:60].rstrip()}"
-        try:
-            draft_result = await asyncio.to_thread(
-                create_gmail_draft,
-                subject=email_subject,
-                body=email_body,
-            )
-            gmail_draft_id = draft_result.get("draft_id")
-            gmail_draft_url = draft_result.get("draft_url")
-        except Exception as e:
-            logger.error("Gmail draft creation failed: %s", e)
-            yield {"type": "error", "content": f"Gmail draft creation failed: {e}"}
 
         logger.info(
             "PLAN artifacts: doc=%s cal=%s draft=%s",

@@ -134,10 +134,10 @@ body { margin: 0; background: var(--bg-page); }
   padding: 2px 8px;
   border-radius: 20px;
 }
-.mode-badge--chat    { background: #f9fafb; color: #6b7280; }
-.mode-badge--recall  { background: #eff6ff; color: var(--recall); }
-.mode-badge--analyze { background: #f5f3ff; color: var(--analyze); }
-.mode-badge--plan    { background: #f0fdf4; color: var(--plan); }
+.mode-badge--chat    { background: transparent; color: var(--text-400); border: 1px solid rgba(138,138,136,0.4); }
+.mode-badge--recall  { background: transparent; color: var(--recall); border: 1px solid rgba(96,165,250,0.35); }
+.mode-badge--analyze { background: transparent; color: var(--analyze); border: 1px solid rgba(167,139,250,0.35); }
+.mode-badge--plan    { background: transparent; color: var(--plan); border: 1px solid rgba(74,222,128,0.35); }
 
 /* ── Agent message content ── */
 .msg__para  { margin: 0 0 10px; }
@@ -199,7 +199,7 @@ body { margin: 0; background: var(--bg-page); }
 .citation__title a:hover { text-decoration: underline; color: #bfdbfe; }
 .citation__meta { display: flex; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-400); }
 .rel { font-weight: 600; }
-.rel--high { color: #4ade80; }
+.rel--high { color: var(--text-300); }
 .rel--med  { color: #fbbf24; }
 .rel--low  { color: var(--text-400); }
 .citation__link-label { margin-left: 6px; font-size: 11px; color: var(--text-500); font-weight: 400; }

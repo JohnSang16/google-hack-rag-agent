@@ -173,6 +173,35 @@ blocking the async event loop. Fixed with asyncio.to_thread() in agent.py and re
 
 ---
 
+## Backlog — Post-Demo Features
+
+### Two-Tier Access (Public Demo vs Club Use)
+**Why:** The current deployment is open to anyone. For a public hackathon demo that is fine,
+but longer-term the club needs a private version with full features and the public version
+should be limited.
+
+**Public demo tier (no auth):**
+- RECALL and ANALYZE work fully
+- PLAN mode disabled (no doc creation, no Calendar event, no Gmail draft)
+- Citation Drive links hidden — show title and date only
+- Rate limit per IP (e.g., 20 queries/hour)
+
+**Club tier (authenticated):**
+- All three modes including PLAN
+- Full citations with Drive links
+- Calendar event creation enabled
+- Gmail draft creation enabled
+- No rate cap
+
+**Implementation (~2-3 hours):**
+- `server.py`: read `DEMO_MODE=true` env var, pass flag through response
+- `agent.py`: skip all PLAN artifact creation when demo mode is on
+- `ChatInterface.tsx`: hide Drive links and PLAN artifact buttons when `demo_mode` is true
+- Vercel: set `DEMO_MODE=true` on the public frontend deployment
+- Club URL: same backend, different frontend env or a separate Vercel deployment with `DEMO_MODE` unset
+
+---
+
 ## Decisions Log
 
 | Date | Decision | Rationale |

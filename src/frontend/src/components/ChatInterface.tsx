@@ -43,16 +43,15 @@ function TypingIndicator() {
 }
 
 const SUGGESTIONS = [
-  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta?', color: '#93c5fd' },
-  { label: 'ANALYZE', query: 'How has our event attendance grown over time?', color: '#c4b5fd' },
-  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon.', color: '#86efac' },
+  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta and how did we solve them?', color: '#93c5fd' },
+  { label: 'ANALYZE', query: 'How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?', color: '#c4b5fd' },
+  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta.', color: '#86efac' },
 ];
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [latestDraftId, setLatestDraftId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -89,11 +88,10 @@ export default function ChatInterface() {
     abortControllerRef.current = controller;
 
     try {
-      const filters = latestDraftId ? { gmail_draft_id: latestDraftId } : undefined;
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, history, filters }),
+        body: JSON.stringify({ query, history }),
         signal: controller.signal,
       });
 
@@ -121,8 +119,6 @@ export default function ChatInterface() {
               if (ev.type === 'mode')  return [...msgs.slice(0, -1), { ...last, mode: ev.mode }];
               if (ev.type === 'token') return [...msgs.slice(0, -1), { ...last, content: last.content + ev.content }];
               if (ev.type === 'done') {
-                if (ev.gmail_draft_id) setLatestDraftId(ev.gmail_draft_id);
-                if (ev.gmail_draft_id === null) setLatestDraftId(null);
                 return [...msgs.slice(0, -1), {
                   ...last,
                   mode: ev.mode,
@@ -172,15 +168,21 @@ export default function ChatInterface() {
       />
       <div className="flex flex-wrap justify-center gap-2 mt-3">
         {SUGGESTIONS.map((s) => (
-          <button
-            key={s.label}
-            onClick={() => setInputValue(s.query)}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:bg-white/5 disabled:opacity-40"
-            style={{ color: s.color, background: 'transparent', borderColor: s.color + '55' }}
-          >
-            <span className="font-bold tracking-wide">{s.label}</span>
-          </button>
+          <div key={s.label} className="relative group">
+            <button
+              onClick={() => setInputValue(s.query)}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:bg-white/5 disabled:opacity-40"
+              style={{ color: s.color, background: 'transparent', borderColor: s.color + '55' }}
+            >
+              <span className="font-bold tracking-wide">{s.label}</span>
+            </button>
+            {/* Hover tooltip */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 rounded-lg text-[11px] whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
+              style={{ background: 'var(--bg-300)', color: 'var(--text-200)', border: '1px solid var(--bg-300)' }}>
+              {s.query}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -194,7 +196,7 @@ export default function ChatInterface() {
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
           <div className="text-center mb-8">
             <span className="text-5xl mb-4 block" style={{ color: 'var(--accent)' }}>◆</span>
-            <h1 className="text-3xl font-light mb-2" style={{ color: 'var(--text-200)' }}>
+            <h1 className="text-3xl font-light mb-2" style={{ color: 'var(--accent)' }}>
               progsu Intelligence Agent
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-400)' }}>
