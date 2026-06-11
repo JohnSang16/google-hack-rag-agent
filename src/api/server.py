@@ -109,7 +109,7 @@ _DEMO_SEEDS: dict[str, dict] = {
             "The inflection point was Spring 2026. The Claude Workshop brought 200+ students to a live session "
             "with Anthropic ambassador Tyler Sztuka, establishing progsu's ability to attract industry partners. "
             "Hacklanta followed with 400+ attendees, $20,000 in sponsorships, and $5,000+ in prizes across a "
-            "12-hour event — the largest single-event turnout in the org's history. "
+            "12-hour event. The largest single-event turnout in the org's history. "
             "The Fall 2025 slate was intentional org-building; Spring 2026 was the payoff. "
             "The next phase is replicating that scale consistently, not just as a one-time spike."
         ),
