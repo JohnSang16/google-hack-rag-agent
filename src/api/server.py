@@ -256,8 +256,13 @@ def _apply_demo_seeds() -> None:
         _response_cache[key] = entry
 
 
+_NON_CACHE_FILTER_KEYS = frozenset({"plan_doc_url"})
+
+
 def _cache_key(query: str, filters: Optional[dict]) -> str:
-    payload = query.strip().lower() + json.dumps(filters or {}, sort_keys=True)
+    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses
+    clean = {k: v for k, v in (filters or {}).items() if k not in _NON_CACHE_FILTER_KEYS}
+    payload = query.strip().lower() + json.dumps(clean, sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()
 
 
