@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { CopyIcon, CheckIcon } from 'lucide-react';
+import { CopyIcon, CheckIcon, FileTextIcon, CalendarIcon, MailCheckIcon, ExternalLinkIcon } from 'lucide-react';
 import type { Message } from '../types';
 import CitationCard from './CitationCard';
 import { renderContent } from '../utils/renderMarkdown';
@@ -67,13 +67,14 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
             <span className="plan-brief-generating">Drafting your planning brief…</span>
           ) : (
             <div className="plan-brief-card">
+              <span className="plan-brief-card__label">Planning Brief</span>
               <p className="plan-brief-card__summary">
                 {message.summary ?? 'Your planning brief is ready.'}
               </p>
               {onOpenBrief && (
                 <button className="plan-brief-card__open" onClick={onOpenBrief}>
+                  <FileTextIcon size={13} />
                   <span>Open Brief</span>
-                  <span>→</span>
                 </button>
               )}
             </div>
@@ -87,22 +88,27 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
         <div className="artifact-row">
           {message.created_doc_url && (
             <a className="doc-link" href={message.created_doc_url} target="_blank" rel="noopener noreferrer">
-              <span className="doc-link__icon">📄</span>
-              Google Drive
+              <span className="doc-link__dot" style={{ background: '#4ade80' }} />
+              <span className="doc-link__icon"><FileTextIcon size={12} /></span>
+              Google Doc
+              <ExternalLinkIcon size={10} style={{ opacity: 0.4, marginLeft: 2 }} />
             </a>
           )}
           {message.calendar_event_url && (
-            <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer"
-              style={{ background: 'rgba(96,165,250,0.08)', borderColor: 'rgba(96,165,250,0.25)', color: '#93c5fd', boxShadow: '0 0 12px rgba(96,165,250,0.1)' }}>
-              <span className="doc-link__icon">📅</span>
-              Calendar Event
+            <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer">
+              <span className="doc-link__dot" style={{ background: '#60a5fa' }} />
+              <span className="doc-link__icon"><CalendarIcon size={12} /></span>
+              Calendar
+              <ExternalLinkIcon size={10} style={{ opacity: 0.4, marginLeft: 2 }} />
             </a>
           )}
           {message.gmail_draft_url && (
-            <div className="doc-link" style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.25)', color: '#fcd34d', cursor: 'default', boxShadow: '0 0 12px rgba(251,191,36,0.08)' }}>
-              <span className="doc-link__icon">✉️</span>
+            <a className="doc-link" href={message.gmail_draft_url} target="_blank" rel="noopener noreferrer">
+              <span className="doc-link__dot" style={{ background: '#f59e0b' }} />
+              <span className="doc-link__icon"><MailCheckIcon size={12} /></span>
               Email Sent
-            </div>
+              <ExternalLinkIcon size={10} style={{ opacity: 0.4, marginLeft: 2 }} />
+            </a>
           )}
         </div>
       )}
