@@ -83,20 +83,26 @@ export default function MessageBubble({ message, streaming = false, onOpenBrief 
         )}
       </div>
 
-      {isPlan && !streaming && (message.created_doc_url || message.calendar_event_url) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+      {isPlan && !streaming && (message.created_doc_url || message.calendar_event_url || message.gmail_draft_url) && (
+        <div className="artifact-row">
           {message.created_doc_url && (
             <a className="doc-link" href={message.created_doc_url} target="_blank" rel="noopener noreferrer">
               <span className="doc-link__icon">📄</span>
-              Open in Google Drive
+              Google Drive
             </a>
           )}
           {message.calendar_event_url && (
             <a className="doc-link" href={message.calendar_event_url} target="_blank" rel="noopener noreferrer"
-              style={{ background: 'rgba(96,165,250,0.08)', borderColor: 'rgba(96,165,250,0.25)', color: '#93c5fd' }}>
+              style={{ background: 'rgba(96,165,250,0.08)', borderColor: 'rgba(96,165,250,0.25)', color: '#93c5fd', boxShadow: '0 0 12px rgba(96,165,250,0.1)' }}>
               <span className="doc-link__icon">📅</span>
-              View Calendar Event{message.calendar_event_start_date ? ` — ${message.calendar_event_start_date}` : ''}
+              Calendar Event
             </a>
+          )}
+          {message.gmail_draft_url && (
+            <div className="doc-link" style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.25)', color: '#fcd34d', cursor: 'default', boxShadow: '0 0 12px rgba(251,191,36,0.08)' }}>
+              <span className="doc-link__icon">✉️</span>
+              Email Sent
+            </div>
           )}
         </div>
       )}

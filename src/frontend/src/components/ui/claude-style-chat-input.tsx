@@ -228,7 +228,7 @@ export const ClaudeChatInput: React.FC<ChatInputProps> = ({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="flex flex-col items-stretch transition-all duration-200 relative z-10 rounded-2xl border border-bg-300 shadow-[0_0_15px_rgba(0,0,0,0.08)] hover:shadow-[0_0_20px_rgba(0,0,0,0.12)] focus-within:shadow-[0_0_25px_rgba(0,0,0,0.15)] bg-bg-100">
+      <div className="chat-input-box flex flex-col items-stretch transition-all duration-200 relative z-10 rounded-2xl border border-bg-300 bg-bg-100">
         <div className="flex flex-col px-3 pt-3 pb-2 gap-2">
 
           {/* File previews */}

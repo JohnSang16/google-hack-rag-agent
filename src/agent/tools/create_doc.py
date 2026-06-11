@@ -99,11 +99,15 @@ def _build_doc_requests(query: str, answer: str, citations: list[dict]) -> list[
         title = c.get("title", f"Source {i}")
         body = body.replace(f"(Source {i})", f"({title})")
 
+    # Derive H1 title from first heading in the answer, fall back to query
+    h1_match = re.search(r'^#\s+(.+)$', answer, re.MULTILINE)
+    doc_title = h1_match.group(1).strip() if h1_match else query[:80].rstrip()
+
     # Build content segments: {'text', 'style', 'bolds', 'link'}
     segs: list[dict] = []
 
     # Title + query
-    segs.append({"text": "Hackathon Planning Brief", "style": "HEADING_1", "bolds": [], "link": None})
+    segs.append({"text": doc_title, "style": "HEADING_1", "bolds": [], "link": None})
     segs.append({"text": query, "style": "NORMAL_TEXT", "bolds": [], "link": None})
     segs.append({"text": "", "style": "NORMAL_TEXT", "bolds": [], "link": None})
 

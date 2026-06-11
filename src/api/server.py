@@ -154,6 +154,11 @@ async def chat_stream(request: ChatRequest):
                 "summary": done_event.get("summary"),
                 "citations": done_event.get("citations", []),
                 "created_doc_url": done_event.get("created_doc_url"),
+                "calendar_event_url": done_event.get("calendar_event_url"),
+                "calendar_event_id": done_event.get("calendar_event_id"),
+                "calendar_event_start_date": done_event.get("calendar_event_start_date"),
+                "gmail_draft_id": done_event.get("gmail_draft_id"),
+                "gmail_draft_url": done_event.get("gmail_draft_url"),
             })
 
     return StreamingResponse(

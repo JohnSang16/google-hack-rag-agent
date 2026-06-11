@@ -49,9 +49,9 @@ function TypingIndicator() {
 }
 
 const SUGGESTIONS = [
-  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta and how did we solve them?', color: '#93c5fd', tip: 'Look up what happened — events, decisions, outcomes' },
+  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta and how did we solve them?', color: '#93c5fd', tip: 'Look up events, decisions, and outcomes' },
   { label: 'ANALYZE', query: 'How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?', color: '#c4b5fd', tip: 'Spot trends and patterns across the org\'s history' },
-  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta.', color: '#86efac', tip: 'Generate a doc, calendar event, and email draft' },
+  { label: 'PLAN', query: 'Create a sponsor packet for Hacklanta II with key metrics from Hacklanta 1, what we\'re improving, and how sponsors can get involved. Add it to our calendar and email our sponsors.', color: '#86efac', tip: 'Generate a doc, calendar event, and email draft' },
 ];
 
 export default function ChatInterface() {
@@ -184,15 +184,19 @@ export default function ChatInterface() {
             <button
               onClick={() => setInputValue(s.query)}
               disabled={loading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all hover:bg-white/5 disabled:opacity-40"
-              style={{ color: s.color, background: 'transparent', borderColor: s.color + '55' }}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all disabled:opacity-40"
+              style={{
+                color: s.color,
+                background: s.color + '12',
+                borderColor: s.color + '40',
+                boxShadow: `0 0 12px ${s.color}18`,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = s.color + '22'; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 18px ${s.color}30`; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = s.color + '12'; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 12px ${s.color}18`; }}
             >
-              <span className="font-bold tracking-wide">{s.label}</span>
+              <span className="tracking-widest text-[10px]">{s.label}</span>
+              <span style={{ color: s.color + 'aa', fontSize: '11px' }}>{s.tip}</span>
             </button>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-md text-[11px] whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
-              style={{ background: 'var(--bg-200)', color: 'var(--text-300)', border: '1px solid var(--bg-300)' }}>
-              {s.tip}
-            </div>
           </div>
         ))}
       </div>
@@ -213,8 +217,13 @@ export default function ChatInterface() {
         /* Empty state: everything centered together */
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
           <div className="text-center mb-8">
-            <span className="text-5xl mb-4 block" style={{ color: 'var(--accent)' }}>◆</span>
-            <h1 className="text-3xl font-light mb-2" style={{ color: 'var(--accent)' }}>
+            <span className="text-5xl mb-5 block diamond-glow" style={{ color: 'var(--accent)' }}>◆</span>
+            <h1 className="text-3xl font-semibold mb-2 tracking-tight" style={{
+              background: 'linear-gradient(135deg, #a78bfa 0%, #7C3AED 50%, #6d28d9 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
               progsu Intelligence Agent
             </h1>
             <p className="text-sm" style={{ color: 'var(--text-400)' }}>

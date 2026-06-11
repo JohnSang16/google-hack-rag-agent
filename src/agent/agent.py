@@ -42,7 +42,7 @@ Response rules — apply to every answer:
 Mode-specific output:
 - RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved — make the pain point feel real before explaining how it was addressed.
 - ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table with exactly 2 columns: Event or Period, and the key number. One line per cell, no extra columns, no notes column. Close with a 2-3 sentence narrative on what it means for the org.
-- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience. Also write a 2-3 sentence `summary` field describing what the brief covers and what the key focus areas are — this is shown in the chat UI before the user opens the full doc.
+- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience. Also write a 2-3 sentence `summary` field describing what the brief covers and what the key focus areas are — this is shown in the chat UI before the user opens the full doc. Do NOT include draft emails, email templates, or outreach copy in the document body.
 
 {history_section}Retrieved context:
 {context}
@@ -95,7 +95,7 @@ Response rules — apply to every answer:
 Mode-specific output:
 - RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
 - ANALYZE: Lead with the trend in 1-2 sentences. Follow with a markdown table with exactly 2 columns: Event or Period, and the key number. Use ONLY 3-dash separators like |:---|:---|. One line per cell, no extra columns, no notes column. Close with a 2-3 sentence narrative.
-- PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history.
+- PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history. Do NOT include draft emails, email templates, or outreach copy in the document body.
 
 {history_section}Retrieved context:
 {context}
@@ -571,7 +571,9 @@ async def run_stream(
         return
 
     # Explicit send-to-email intent: "send this to the sponsor email"
-    if is_send_to_email_intent(query):
+    # Skip if the query also has drafting intent (e.g. "draft a brief and email sponsors")
+    # Those belong in the PLAN path, which handles email via wants_email.
+    if is_send_to_email_intent(query) and not _PLAN_INTENT_RE.search(query):
         yield {"type": "mode", "mode": "CHAT"}
         # Find the most recent PLAN brief in history (identified by ## headers + length)
         plan_content = None
@@ -739,49 +741,58 @@ async def run_stream(
         paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
         summary = paras[0][:200] if paras else full_answer[:200]
 
-        # Derive a clean event title from the first heading in the brief, fallback to query
-        heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
-        if heading_match:
-            event_title = f"progsu: {heading_match.group(1).strip()[:60]}"
-        else:
-            event_title = f"progsu: {query[:60].rstrip()}"
+        q_lower = query.lower()
+        wants_calendar = any(kw in q_lower for kw in ["calendar", "schedule", "add to"])
+        wants_email = any(kw in q_lower for kw in ["email", "send", "sponsor"])
 
-        # Step 1: Doc + Calendar in parallel
-        doc_result, cal_result = await asyncio.gather(
-            asyncio.to_thread(create_google_doc, query, full_answer, citations),
-            asyncio.to_thread(create_calendar_event, title=event_title, description=summary),
-            return_exceptions=True,
-        )
+        try:
+            created_doc_url = await asyncio.to_thread(create_google_doc, query, full_answer, citations)
+        except Exception as e:
+            logger.error("Google Doc creation failed: %s", e)
 
-        if isinstance(doc_result, Exception):
-            logger.error("Google Doc creation failed: %s", doc_result)
-        else:
-            created_doc_url = doc_result
+        if wants_calendar:
+            try:
+                heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
+                event_title = f"progsu: {heading_match.group(1).strip()[:60]}" if heading_match else f"progsu: {query[:60].rstrip()}"
+                cal_result = await asyncio.to_thread(
+                    create_calendar_event, title=event_title, description=summary, doc_url=created_doc_url
+                )
+                calendar_event_url = cal_result.get("html_link")
+                calendar_event_id = cal_result.get("event_id")
+                calendar_event_start_date = cal_result.get("start_date")
+            except Exception as e:
+                logger.error("Calendar event creation failed: %s", e)
 
-        if isinstance(cal_result, Exception):
-            logger.error("Calendar event creation failed: %s", cal_result)
-        else:
-            calendar_event_url = cal_result.get("html_link")
-            calendar_event_id = cal_result.get("event_id")
-            calendar_event_start_date = cal_result.get("start_date")
-            # Update calendar event description with doc link
-            if created_doc_url:
-                try:
-                    from src.agent.tools.create_calendar_event import _get_service, CALENDAR_ID
-                    await asyncio.to_thread(
-                        _get_service().events().patch(
-                            calendarId=CALENDAR_ID,
-                            eventId=calendar_event_id,
-                            body={"description": f"{summary}\n\nPlanning Brief: {created_doc_url}"},
-                        ).execute
-                    )
-                except Exception:
-                    pass  # Non-critical, event already created
+        if wants_email and created_doc_url:
+            try:
+                email_prompt = _OUTREACH_EMAIL_PROMPT.format(
+                    recipient_context="sponsors",
+                    doc_url=created_doc_url,
+                    plan_content=full_answer[:3000],
+                )
+                email_response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash",
+                    contents=email_prompt,
+                    config=genai.types.GenerateContentConfig(temperature=0.3, max_output_tokens=2048),
+                )
+                raw_email = email_response.text.strip()
+                lines = raw_email.split("\n", 2)
+                if lines[0].lower().startswith("subject:"):
+                    email_subject = lines[0][8:].strip()
+                    email_body = "\n".join(lines[1:]).lstrip("\n")
+                else:
+                    email_subject = "[progsu] Planning Brief"
+                    email_body = raw_email
+                draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
+                draft_id = draft_result.get("draft_id")
+                gmail_draft_url = draft_result.get("draft_url")
+                await asyncio.to_thread(send_gmail_draft, draft_id)
+                logger.info("Auto-sent email to sponsors: %s", email_subject)
+            except Exception as e:
+                logger.error("Auto-email failed: %s", e)
 
-        logger.info(
-            "PLAN artifacts: doc=%s cal=%s draft=%s",
-            created_doc_url, calendar_event_url, gmail_draft_id,
-        )
+        logger.info("PLAN artifacts: doc=%s cal=%s email=%s", created_doc_url, calendar_event_url, bool(wants_email))
 
     # Serialize citations safely
     def _serialize(c: dict) -> dict:
