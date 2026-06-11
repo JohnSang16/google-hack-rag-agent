@@ -175,6 +175,19 @@ blocking the async event loop. Fixed with asyncio.to_thread() in agent.py and re
 
 ## Backlog — Post-Demo Features
 
+### Financial Data Safety (~45 min)
+**Why:** The agent has access to real financial records (budgets, sponsor amounts, expenses). Currently there is no guard on who can ask for this or how it is returned. In a public or club-wide deployment this is a risk.
+
+**Desired behavior:**
+- Agent never surfaces specific dollar amounts, account details, or line-item expenses to unauthenticated users
+- In DEMO_MODE: financial queries return a note that detailed financial data is restricted
+- In full club deployment: financial data is available but the agent adds a caveat that figures are internal and should not be shared publicly
+
+**Implementation:**
+- `agent.py`: add financial keywords to `_SENSITIVE_PHRASES` or a separate `_FINANCIAL_GUARD` check
+- If DEMO_MODE and query contains financial keywords, return a canned response: "Detailed financial records are restricted. Ask your exec board directly."
+- Prompt rule in `_ANSWER_PROMPT` and `_STREAM_ANSWER_PROMPT`: never output specific dollar amounts from financial records to unauthenticated sessions
+
 ### Two-Tier Access (Public Demo vs Club Use)
 **Why:** The current deployment is open to anyone. For a public hackathon demo that is fine,
 but longer-term the club needs a private version with full features and the public version
