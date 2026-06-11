@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -114,8 +115,17 @@ async def chat_stream(request: ChatRequest):
     async def generate():
         if cached:
             logger.info("Cache hit (stream): %s", request.query[:60])
+            # Simulate real streaming so demo recordings look authentic
+            await asyncio.sleep(1.8)
             yield f"data: {json.dumps({'type': 'mode', 'mode': cached['mode']})}\n\n"
-            yield f"data: {json.dumps({'type': 'token', 'content': cached['answer']})}\n\n"
+            words = cached["answer"].split(" ")
+            chunk_size = 4
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i:i + chunk_size])
+                if i + chunk_size < len(words):
+                    chunk += " "
+                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                await asyncio.sleep(0.03)
             yield f"data: {json.dumps({'type': 'done', **{k: v for k, v in cached.items() if k != 'citations'}, 'citations': cached.get('citations', [])})}\n\n"
             return
 

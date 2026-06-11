@@ -6,25 +6,30 @@ import ClaudeChatInput from './ui/claude-style-chat-input';
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 const LOADING_MESSAGES = [
-  'cooking…', 'locking in…', 'rizzing up the database…',
-  'try-hard maxxing…', 'let him cook…', 'super saiyan mode activated…',
-  'no cap searching the archives…', 'going feral on the docs…',
-  'sigma retrieval arc…', 'glazing the vector index…',
-  'ate and left no crumbs…', 'this is so real fr fr…',
-  'we do a little institutional memory…', 'on my grind rn…',
-  'NPC behavior detected, switching to main character mode…',
+  'cooking…', 'locking in…', 'rizzing…', 'try-harding…', 'let him cook…',
+  'i like ya cut g…', 'ouu shii…', 'we do a lil trollin…', 'chud maxxing…',
+  'working hard or hardly working?…', 'big spoon or little spoon?…', 'dariaaaahhh…',
 ];
+
+const OUU_SHII_INDEX = LOADING_MESSAGES.indexOf('ouu shii…');
+const FYM_MESSAGE = 'fym ouu shii?…';
 
 function TypingIndicator() {
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
+  const pendingFym = useRef(false);
   useEffect(() => {
     const fade = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
         setIndex((prev) => {
+          if (pendingFym.current) {
+            pendingFym.current = false;
+            return -1; // sentinel for fym
+          }
           let next;
           do { next = Math.floor(Math.random() * LOADING_MESSAGES.length); } while (next === prev);
+          if (next === OUU_SHII_INDEX) pendingFym.current = true;
           return next;
         });
         setVisible(true);
@@ -35,7 +40,7 @@ function TypingIndicator() {
   return (
     <div className="bubble bubble--typing">
       <span className="typing-text" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
-        {LOADING_MESSAGES[index]}
+        {index === -1 ? FYM_MESSAGE : LOADING_MESSAGES[index]}
       </span>
       <div className="typing"><span /><span /><span /></div>
     </div>
@@ -43,9 +48,9 @@ function TypingIndicator() {
 }
 
 const SUGGESTIONS = [
-  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta and how did we solve them?', color: '#93c5fd' },
-  { label: 'ANALYZE', query: 'How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?', color: '#c4b5fd' },
-  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta.', color: '#86efac' },
+  { label: 'RECALL', query: 'What were the key logistics challenges at Hacklanta and how did we solve them?', color: '#93c5fd', tip: 'Look up what happened — events, decisions, outcomes' },
+  { label: 'ANALYZE', query: 'How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?', color: '#c4b5fd', tip: 'Spot trends and patterns across the org\'s history' },
+  { label: 'PLAN', query: 'Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta.', color: '#86efac', tip: 'Generate a doc, calendar event, and email draft' },
 ];
 
 export default function ChatInterface() {
@@ -177,10 +182,9 @@ export default function ChatInterface() {
             >
               <span className="font-bold tracking-wide">{s.label}</span>
             </button>
-            {/* Hover tooltip */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1.5 rounded-lg text-[11px] whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
-              style={{ background: 'var(--bg-300)', color: 'var(--text-200)', border: '1px solid var(--bg-300)' }}>
-              {s.query}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-md text-[11px] whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
+              style={{ background: 'var(--bg-200)', color: 'var(--text-300)', border: '1px solid var(--bg-300)' }}>
+              {s.tip}
             </div>
           </div>
         ))}

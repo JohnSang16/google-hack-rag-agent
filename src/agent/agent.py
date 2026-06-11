@@ -41,7 +41,7 @@ Response rules — apply to every answer:
 
 Mode-specific output:
 - RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved — make the pain point feel real before explaining how it was addressed.
-- ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table of the key data points. Close with a 2-3 sentence narrative on what it means for the org.
+- ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table with exactly 2 columns: Event or Period, and the key number. One line per cell, no extra columns, no notes column. Close with a 2-3 sentence narrative on what it means for the org.
 - PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history — make it clear this plan is built on real experience. Also write a 2-3 sentence `summary` field describing what the brief covers and what the key focus areas are — this is shown in the chat UI before the user opens the full doc.
 
 {history_section}Retrieved context:
@@ -94,7 +94,7 @@ Response rules — apply to every answer:
 
 Mode-specific output:
 - RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
-- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a COMPLETE markdown table — use ONLY 3-dash separators like |:---|:---|:---| (never long dash sequences). Include every data point from the context. Close with a 2-3 sentence narrative.
+- ANALYZE: Lead with the trend in 1-2 sentences. Follow with a markdown table with exactly 2 columns: Event or Period, and the key number. Use ONLY 3-dash separators like |:---|:---|. One line per cell, no extra columns, no notes column. Close with a 2-3 sentence narrative.
 - PLAN: Write a full structured document with ## section headings. Every section must be actionable. Ground every recommendation in real org history.
 
 {history_section}Retrieved context:
@@ -478,7 +478,8 @@ async def run(
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
 
     try:
-        max_tokens = 8192 if mode == "PLAN" else 4096
+        max_tokens = 16384 if mode == "PLAN" else 8192
+        thinking_budget = 2048 if mode == "PLAN" else 1024
         response = await asyncio.to_thread(
             client.models.generate_content,
             model="gemini-2.5-flash",
@@ -487,6 +488,7 @@ async def run(
                 response_mime_type="application/json",
                 temperature=0.2,
                 max_output_tokens=max_tokens,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=thinking_budget),
             ),
         )
         answer, citations, summary = _parse_response(response.text)
@@ -633,13 +635,20 @@ async def run_stream(
         prompt = _STREAM_NO_CONTEXT_PROMPT.format(query=query)
 
     # Stream answer with gemini-2.5-flash
+    # thinking_budget caps how many tokens the model spends reasoning before writing;
+    # without it, thinking eats into max_output_tokens and truncates the response.
     full_answer = ""
-    max_tokens = 8192 if mode == "PLAN" else 2048
+    max_tokens = 16384 if mode == "PLAN" else 8192
+    thinking_budget = 2048 if mode == "PLAN" else 1024
     try:
         async for chunk in await client.aio.models.generate_content_stream(
             model="gemini-2.5-flash",
             contents=prompt,
-            config=genai.types.GenerateContentConfig(temperature=0.2, max_output_tokens=max_tokens),
+            config=genai.types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=max_tokens,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=thinking_budget),
+            ),
         ):
             if chunk.text:
                 full_answer += chunk.text

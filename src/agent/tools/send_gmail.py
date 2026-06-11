@@ -29,7 +29,7 @@ OAUTH_TOKEN_FILE = next(
 
 DEFAULT_RECIPIENT = os.getenv("GMAIL_DEMO_RECIPIENT", "")
 
-# Detects explicit "send [plan/this/brief] to [someone]" intent
+# Detects explicit email-send intent in various phrasings
 _SEND_TO_RE = re.compile(
     r'\b(send|email|forward)\b.{0,60}\bto\b.{1,50}\b(sponsor|team|exec|club|email|member|lead|everyone|them)',
     re.IGNORECASE,
@@ -38,12 +38,16 @@ _SEND_TARGET_RE = re.compile(
     r'\b(send|email|forward)\b.{0,30}\b(sponsor|exec\s+team|club\s+members)',
     re.IGNORECASE,
 )
+_SEND_EMAIL_RE = re.compile(
+    r'\bsend\b.{0,20}\bemail\b|\bemail\b.{0,20}\b(draft|brief|plan|this)\b',
+    re.IGNORECASE,
+)
 
 
 def is_send_to_email_intent(query: str) -> bool:
-    """Return True if the user is explicitly asking to send a plan/brief to someone."""
+    """Return True if the user is explicitly asking to send a plan/brief via email."""
     q = query.strip()
-    return bool(_SEND_TO_RE.search(q) or _SEND_TARGET_RE.search(q))
+    return bool(_SEND_TO_RE.search(q) or _SEND_TARGET_RE.search(q) or _SEND_EMAIL_RE.search(q))
 
 
 def _get_service():
