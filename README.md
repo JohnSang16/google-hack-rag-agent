@@ -83,15 +83,15 @@ Every chunk passes a Gemini YES/NO noise filter before storage. PII is stripped 
 
 ---
 
-## Performance
+## Demo Queries
 
-With batched reranker (10 chunks scored in one Gemini call) and streaming:
+The three queries run live at the demo, with the sources each one draws from:
 
-| Query | Mode | Latency | Citations |
-|---|---|---|---|
-| "What were the key logistics challenges at Hacklanta?" | RECALL | ~25s | FAQs-Hacklanta, Operations Meeting Notes, Discord #hacklanta |
-| "How has event attendance grown from Fall 2025 to Spring 2026?" | ANALYZE | ~15s | Combined Attendance, Involvement Fair Signups |
-| "Draft a planning brief for our next major hackathon." | PLAN | ~38s + Google Doc, Calendar event, outreach email | Discord #hacklanta, Operations Meeting Notes |
+| Query | Mode | Sources |
+|---|---|---|
+| "What were the key logistics challenges at Hacklanta and how did we solve them?" | RECALL | FAQs-Hacklanta, Operations Meeting Notes, Discord #hacklanta |
+| "How has event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?" | ANALYZE | Combined Attendance, Involvement Fair Signups |
+| "Draft a planning brief for our next major hackathon based on everything we learned from Hacklanta." | PLAN | Discord #hacklanta, Operations Meeting Notes + Google Doc, Calendar event, outreach email |
 
 ---
 
