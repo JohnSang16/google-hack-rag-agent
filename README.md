@@ -275,14 +275,14 @@ The live deployment at https://frontend-coral-mu-47.vercel.app runs with `DEMO_M
 | Google Doc creation (PLAN mode) | On | On |
 | Google Calendar event creation | Off | On |
 | Gmail outreach email | Off | On |
-| Rate limiting (10 req/IP/min) | On | Off |
-| Injection blocking | On | Off |
+| Rate limiting | Strict (10 req/IP/min) | Configurable |
+| Injection blocking | Strict | Configurable |
 | Download brief as Markdown | On | On |
 | Copy response to clipboard | On | On |
 
 When Calendar or Gmail would have triggered in the demo (e.g. a PLAN query that says "add to calendar"), the response includes a note that those features are not available in this demo. All other PLAN functionality (retrieval, synthesis, Google Doc creation, side-panel viewer) works normally.
 
-To run without restrictions, deploy without setting `DEMO_MODE` (defaults to off).
+Full deployments should still configure rate limiting and injection blocking to match their trust boundary. `DEMO_MODE` sets conservative defaults for public-facing use.
 
 ---
 
