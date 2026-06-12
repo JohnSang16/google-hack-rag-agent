@@ -251,6 +251,20 @@ The Dockerfile builds the FastAPI app. Secrets (Drive OAuth token) are mounted v
 
 **MongoDB Atlas:** M0 free tier. Atlas Vector Search index required (see `docs/ARCHITECTURE.md` for index definition). IP whitelist must include Cloud Run egress IPs or `0.0.0.0/0`.
 
+### Cost Protection (set these in Cloud Run env vars before publishing)
+
+```
+DEMO_MODE=true              # enables per-IP rate limiting, query guard, and injection blocking
+DAILY_REQUEST_CAP=300       # hard daily cap across all IPs; returns 503 when exhausted; 0 to disable
+ALLOWED_ORIGINS=https://your-frontend.vercel.app  # comma-separated; restricts CORS to your frontend only
+```
+
+Additionally, set a hard quota on the Gemini API in GCP Console:
+1. Go to APIs and Services, click Gemini API, then Quotas and System Limits
+2. Filter for `gemini-2.0-flash` (covers 2.5-flash calls in GCP's quota grouping)
+3. Set "Request limit per model per day" to 500 and "Request limit per model per minute (paid tier 1)" to 60
+4. Set a billing budget alert at Billing, Budgets and alerts with a monthly ceiling
+
 ---
 
 ## Broader Impact
