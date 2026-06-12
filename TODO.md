@@ -237,24 +237,8 @@ creating a duplicate.
 
 ---
 
-### PLAN Mode UX — Doc Viewer Side Panel
-**Why:** Currently the full markdown brief streams visibly into the chat before being
-replaced by a hyperlink. This looks broken and exposes an intermediate state the user
-should never see. The ideal UX mirrors Claude Artifacts — a side panel with the full
-content, a download button, and a clean link in chat.
-
-**Desired behavior:**
-- Chat shows only a short confirmation line when PLAN completes, no markdown wall
-- A slide-in side panel renders the full doc content in markdown
-- Panel has a Download button (exports as .md or .txt) and a View in Drive link
-- Closing the panel collapses it back; reopening via a button on the message bubble
-
-**Implementation (~3-4 hours):**
-- `agent.py`: add a `brief_markdown` field to the done event (the raw answer text)
-- `ChatInterface.tsx`: add `DocPanel` component — slide-in right drawer
-- `MessageBubble.tsx`: for PLAN messages, replace streamed markdown with a single
-  "Planning brief ready" line + "Open Brief" button that triggers the panel
-- Download: `URL.createObjectURL(new Blob([brief_markdown]))` with `.md` extension
+### ~~PLAN Mode UX — Doc Viewer Side Panel~~ ✓ DONE
+Implemented. Chat shows summary only, full brief in slide-in side panel (DocPanel.tsx), Open Brief button on message bubble, download as .md, View in Drive link.
 
 ---
 
