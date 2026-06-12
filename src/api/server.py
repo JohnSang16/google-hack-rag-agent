@@ -26,6 +26,11 @@ _RATE_LIMIT_WINDOW = 60   # seconds
 _RATE_LIMIT_MAX = 10      # requests per IP per window
 _MAX_QUERY_LEN = 400
 
+# Hard daily cap across all IPs — acts as a billing circuit breaker.
+# Set DAILY_REQUEST_CAP in env to override. 0 = disabled.
+_DAILY_CAP = int(os.environ.get("DAILY_REQUEST_CAP", "300"))
+_daily_counter: dict[str, int] = {}
+
 _rate_tracker: dict[str, list[float]] = defaultdict(list)
 
 _BLOCKED_PATTERNS = [
@@ -50,6 +55,19 @@ def _check_rate_limit(ip: str) -> bool:
         return False
     _rate_tracker[ip].append(now)
     return True
+
+
+def _check_daily_cap() -> bool:
+    """Return False if the global daily request cap has been reached."""
+    if _DAILY_CAP <= 0:
+        return True
+    today = time.strftime("%Y-%m-%d")
+    # Evict stale dates so the dict doesn't grow unbounded across days
+    for k in list(_daily_counter):
+        if k != today:
+            del _daily_counter[k]
+    _daily_counter[today] = _daily_counter.get(today, 0) + 1
+    return _daily_counter[today] <= _DAILY_CAP
 
 
 
@@ -334,11 +352,20 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="progsu Intelligence Agent", version="1.0.0")
 
+# ALLOWED_ORIGINS env var is a comma-separated list of allowed frontend origins.
+# Default "*" works for local dev; set to your actual frontend URL in production.
+# Example: ALLOWED_ORIGINS=https://progsu.vercel.app,https://progsu.example.com
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+_allowed_origins: list[str] = (
+    ["*"] if _raw_origins.strip() == "*"
+    else [o.strip() for o in _raw_origins.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 
@@ -406,6 +433,9 @@ async def clear_cache():
 async def chat_stream(request: ChatRequest, http_request: Request):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
+
+    if not _check_daily_cap():
+        raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
 
@@ -501,6 +531,9 @@ async def chat_stream(request: ChatRequest, http_request: Request):
 async def chat(request: ChatRequest, http_request: Request):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
+
+    if not _check_daily_cap():
+        raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
     if not _check_rate_limit(ip):
