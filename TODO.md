@@ -4,7 +4,7 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SESSION 6.5 IN PROGRESS — Discord ingested, latency fixed, needs Cloud Run redeploy + video + Devpost
+## Current Status: SUBMITTED ✓ — Devpost submitted June 11, 2026. Judging ends July 13, 2026. Backlog items are post-judging work.
 
 ---
 
@@ -128,26 +128,33 @@ blocking the async event loop. Fixed with asyncio.to_thread() in agent.py and re
 
 ---
 
-## Session 6.5 — Discord Ingestion + Latency Fix (IN PROGRESS as of 2026-06-07)
+## Session 6.5 — Discord Ingestion + Latency Fix ✓ DONE (2026-06-11)
 **Goal:** Get Discord data into Atlas, fix 78s query latency, redeploy, record video, submit.
 
 ### Completed
 - [x] Wrote `src/ingestion/discord_reader.py` and `src/ingestion/run_discord_ingestion.py`
 - [x] Added channel skip filter (off-topic, bots, memes, graphics, receipts, etc.)
-- [x] Discord ingestion running — 73+ chunks from #hacklanta, #announcements, #exec-interest-meeting, #spring-kickoff, #claude-workshop, #involvement-fair, #progirls (more coming)
+- [x] Discord ingested — chunks from #hacklanta, #announcements, #exec-interest-meeting, #spring-kickoff, #claude-workshop, #involvement-fair, #progirls
 - [x] Fixed critical latency bug: reranker was making 10 sequential Gemini calls (~70s). Rewrote to batch all chunks into 1 call. Q1: 78s → 24s. Q2: 83s → 15s. Q3: timeout → 38s + doc created.
 - [x] Parallelized mode classification with retrieval in agent.py (saves ~3s per query)
 - [x] Fixed em dash in create_doc.py doc title (violated CLAUDE.md rules)
 - [x] Drafted Devpost submission: docs/DEVPOST_DRAFT.md
+- [x] Discord ingestion complete
+- [x] Deployed to Cloud Run
+- [x] GitHub repo made public with MIT license (renamed to progsu-intelligence-agent)
+- [x] All 3 demo queries verified on production
+- [x] Demo video recorded and uploaded
+- [x] Devpost submitted before June 11 @ 5:00pm EDT
 
-### Remaining — Human Action Required
-- [ ] Wait for Discord ingestion to finish (running now, ~73 chunks in so far)
-- [ ] **DEPLOY**: `gcloud run deploy progsu-agent --source . --region us-central1` — redeploys with batched reranker + Discord data in Atlas (no code changes needed for Atlas, data is already live; deploy needed for reranker + agent.py fixes)
-- [ ] Set up public GitHub repo with OSS license (MIT) — make repo public on GitHub
-- [ ] Run all 3 demo queries 5 times against production to confirm consistency after redeploy
-- [ ] Record 3-minute demo video following docs/DEMO_SCRIPT.md
-- [ ] Finalize and submit Devpost using docs/DEVPOST_DRAFT.md
-- [ ] Submit before June 11, 2026 @ 5:00pm EDT
+### Post-submission safety + polish (2026-06-11)
+- [x] PII output block: agent never returns phone numbers or emails from context
+- [x] External individual redaction: agent never names non-progsu people in conflict contexts
+- [x] Sensitive chunk filter: `_filter_sensitive_chunks()` drops institutional-resistance content before LLM sees it
+- [x] DEMO_MODE gates Calendar and Gmail in PLAN mode with explanatory note
+- [x] Download button (Markdown) and copy button added to PLAN brief card
+- [x] README Demo section added listing what is on vs off in live deployment
+- [x] README Devpost link added
+- [x] README rate limiting/injection blocking language corrected to "Configurable" not "Off"
 
 ### Performance After Fix (local timings — Cloud Run will be faster)
 | Query | Before | After | Citations |
