@@ -12,6 +12,7 @@ import argparse
 import os
 import sys
 
+import certifi
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
@@ -25,7 +26,7 @@ def get_collection():
         sys.exit(1)
     db_name = os.getenv("MONGODB_DB_NAME", "progsu_intelligence")
     collection_name = os.getenv("MONGODB_COLLECTION", "chunks")
-    client = MongoClient(uri)
+    client = MongoClient(uri, tlsCAFile=certifi.where())
     return client[db_name][collection_name]
 
 
