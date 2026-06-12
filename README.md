@@ -5,6 +5,7 @@ Every student org leader loses institutional knowledge when people graduate. Thi
 Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com), MongoDB track.
 
 **Live demo:** https://frontend-coral-mu-47.vercel.app
+**Devpost:** https://devpost.com/software/progsu-intelligence-agent
 
 ---
 
