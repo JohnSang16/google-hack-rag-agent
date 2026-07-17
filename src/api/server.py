@@ -58,16 +58,22 @@ def _check_rate_limit(ip: str) -> bool:
 
 
 def _check_daily_cap() -> bool:
-    """Return False if the global daily request cap has been reached."""
+    """Return False if the global daily request cap has been reached. Does not count the request."""
     if _DAILY_CAP <= 0:
         return True
+    today = time.strftime("%Y-%m-%d")
+    return _daily_counter.get(today, 0) < _DAILY_CAP
+
+
+def _count_daily_request() -> None:
+    """Count one request against the daily cap. Call only after all other guards pass,
+    so rate-limited or blocked requests don't burn the daily budget."""
     today = time.strftime("%Y-%m-%d")
     # Evict stale dates so the dict doesn't grow unbounded across days
     for k in list(_daily_counter):
         if k != today:
             del _daily_counter[k]
     _daily_counter[today] = _daily_counter.get(today, 0) + 1
-    return _daily_counter[today] <= _DAILY_CAP
 
 
 
@@ -447,6 +453,8 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         if guard_err:
             raise HTTPException(status_code=400, detail=guard_err)
 
+    _count_daily_request()
+
     logger.info("POST /chat/stream: %s", request.query[:80])
 
     cache_key = _cache_key(request.query, request.filters)
@@ -542,6 +550,8 @@ async def chat(request: ChatRequest, http_request: Request):
     guard_err = _check_query(request.query.strip())
     if guard_err:
         raise HTTPException(status_code=400, detail=guard_err)
+
+    _count_daily_request()
 
     logger.info("POST /chat: %s", request.query[:80])
 

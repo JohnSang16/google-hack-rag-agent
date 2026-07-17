@@ -73,7 +73,7 @@ async def retrieve(
         logger.warning("Vector search returned 0 results for query: %s", query[:80])
         return []
 
-    # 3. Rerank (sync, makes up to 10 sequential Gemini calls — run in thread)
+    # 3. Rerank (sync, one batched Gemini call scores all chunks; run in thread)
     results = await asyncio.to_thread(rerank, query, candidates, gemini_client)
 
     logger.info(

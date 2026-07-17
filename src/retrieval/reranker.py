@@ -30,6 +30,12 @@ MIN_SCORE = 6
 MIN_RESULTS = 2
 MAX_CHUNK_CHARS = 800
 
+# Score assigned to every chunk when the reranker call fails or returns a
+# malformed response. Must stay below the agent's confidence gate (5) even
+# after the +1.5 authority boost, so a reranker outage degrades to
+# "not enough info" instead of ungated generation.
+FAILURE_SCORE = 3
+
 # Authoritative sources: one source of truth per topic area.
 # Chunks from these files get a +1.5 score boost after reranking.
 _AUTHORITATIVE_FILE_IDS = {
@@ -89,11 +95,11 @@ def _batch_score(query: str, chunks: list[dict], client: genai.Client) -> list[i
         scores = json.loads(raw)
         if isinstance(scores, list) and len(scores) == len(chunks):
             return [min(max(int(s), 0), 10) for s in scores]
-        logger.warning("Unexpected reranker response shape, defaulting scores to 5")
-        return [5] * len(chunks)
+        logger.warning("Unexpected reranker response shape, defaulting scores to %d", FAILURE_SCORE)
+        return [FAILURE_SCORE] * len(chunks)
     except Exception as e:
-        logger.warning("Batch reranker failed, defaulting all scores to 5: %s", e)
-        return [5] * len(chunks)
+        logger.warning("Batch reranker failed, defaulting all scores to %d: %s", FAILURE_SCORE, e)
+        return [FAILURE_SCORE] * len(chunks)
 
 
 def rerank(query: str, chunks: list[dict], client: genai.Client = None) -> list[dict]:
