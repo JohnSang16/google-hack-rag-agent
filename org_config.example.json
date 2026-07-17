@@ -16,5 +16,6 @@
       "answer": "Example canned answer served from cache for the public demo.",
       "citations": []
     }
-  }
+  },
+  "drive_root_folder_id": "your-drive-root-folder-id"
 }

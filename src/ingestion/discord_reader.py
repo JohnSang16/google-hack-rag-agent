@@ -82,6 +82,24 @@ def _parse_date(ts: str) -> str:
         return "unknown"
 
 
+def date_chunk_key(date: str, subchunk_index: int) -> int:
+    """Chunk key fully determined by the chunk's own date, independent of what
+    else was fetched in the same run. This is what makes incremental syncs
+    idempotent: re-processing an already-seen day re-upserts the same key with
+    refreshed text instead of colliding with run-relative sequential numbering.
+    E.g. 2026-07-17 subchunk 0 -> 20260717000."""
+    try:
+        return int(date.replace("-", "")) * 1000 + subchunk_index
+    except ValueError:
+        return subchunk_index
+
+
+# Date keys are >= 19700101000; the pre-sync sequential scheme produced small
+# ints. Anything below this is a legacy chunk that would duplicate a date-keyed
+# upsert for the same day and should be purged once per channel.
+LEGACY_CHUNK_KEY_CEILING = 19700101000
+
+
 def _build_chunk(
     guild: str,
     channel: str,
@@ -116,6 +134,48 @@ def _build_chunk(
     }
 
 
+def chunks_from_messages(
+    guild_name: str,
+    channel_name: str,
+    guild_id: str,
+    channel_id: str,
+    raw_messages: list[dict],
+) -> Iterator[dict]:
+    """Group messages (exporter dict shape: {id, timestamp, content, author})
+    into daily chunks keyed by date_chunk_key. Source-agnostic: works on
+    DiscordChatExporter JSON messages and on REST API fetches converted to the
+    same shape."""
+    by_date: dict[str, list[dict]] = {}
+    for msg in raw_messages:
+        if _is_bot_message(msg):
+            continue
+        date = _parse_date(msg.get("timestamp", ""))
+        if _format_message(msg):
+            by_date.setdefault(date, []).append(msg)
+
+    for date in sorted(by_date.keys()):
+        day_messages = by_date[date]
+        if len(day_messages) < MIN_MESSAGES_PER_CHUNK:
+            continue
+
+        subchunk = 0
+        current_msgs: list[dict] = []
+        current_len = 0
+        for msg in day_messages:
+            line = _format_message(msg)
+            if current_len + len(line) > MAX_CHUNK_CHARS and current_msgs:
+                if len(current_msgs) >= MIN_MESSAGES_PER_CHUNK:
+                    yield _build_chunk(guild_name, channel_name, date, current_msgs, guild_id, channel_id, date_chunk_key(date, subchunk))
+                    subchunk += 1
+                current_msgs = []
+                current_len = 0
+            current_msgs.append(msg)
+            current_len += len(line) + 1
+
+        if len(current_msgs) >= MIN_MESSAGES_PER_CHUNK:
+            yield _build_chunk(guild_name, channel_name, date, current_msgs, guild_id, channel_id, date_chunk_key(date, subchunk))
+
+
 def read_discord_export(json_path: Path) -> Iterator[dict]:
     """
     Parse a DiscordChatExporter JSON file and yield daily chunk dicts.
@@ -124,7 +184,7 @@ def read_discord_export(json_path: Path) -> Iterator[dict]:
       text             - chunk text for embedding (no author names)
       channel          - channel name
       date             - YYYY-MM-DD
-      chunk_index      - position within this channel's chunks
+      chunk_index      - date_chunk_key(date, subchunk), stable across runs
       guild_id         - Discord server ID
       channel_id       - Discord channel ID
       first_message_id - ID of the first message in this chunk (for deep link)
@@ -134,43 +194,13 @@ def read_discord_export(json_path: Path) -> Iterator[dict]:
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    channel_name = data.get("channel", {}).get("name", json_path.stem)
-    guild_name = data.get("guild", {}).get("name", "progsu")
-    guild_id = data.get("guild", {}).get("id", "")
-    channel_id = data.get("channel", {}).get("id", "")
-    raw_messages = data.get("messages", [])
-
-    # Group non-bot, non-empty messages by calendar day
-    by_date: dict[str, list[dict]] = {}
-    for msg in raw_messages:
-        if _is_bot_message(msg):
-            continue
-        date = _parse_date(msg.get("timestamp", ""))
-        if _format_message(msg):
-            by_date.setdefault(date, []).append(msg)
-
-    chunk_index = 0
-    for date in sorted(by_date.keys()):
-        day_messages = by_date[date]
-        if len(day_messages) < MIN_MESSAGES_PER_CHUNK:
-            continue
-
-        current_msgs: list[dict] = []
-        current_len = 0
-        for msg in day_messages:
-            line = _format_message(msg)
-            if current_len + len(line) > MAX_CHUNK_CHARS and current_msgs:
-                if len(current_msgs) >= MIN_MESSAGES_PER_CHUNK:
-                    yield _build_chunk(guild_name, channel_name, date, current_msgs, guild_id, channel_id, chunk_index)
-                    chunk_index += 1
-                current_msgs = []
-                current_len = 0
-            current_msgs.append(msg)
-            current_len += len(line) + 1
-
-        if len(current_msgs) >= MIN_MESSAGES_PER_CHUNK:
-            yield _build_chunk(guild_name, channel_name, date, current_msgs, guild_id, channel_id, chunk_index)
-            chunk_index += 1
+    yield from chunks_from_messages(
+        guild_name=data.get("guild", {}).get("name", "progsu"),
+        channel_name=data.get("channel", {}).get("name", json_path.stem),
+        guild_id=data.get("guild", {}).get("id", ""),
+        channel_id=data.get("channel", {}).get("id", ""),
+        raw_messages=data.get("messages", []),
+    )
 
 
 def read_discord_export_dir(export_dir: Path) -> Iterator[tuple[Path, dict]]:
