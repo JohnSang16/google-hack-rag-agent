@@ -60,6 +60,7 @@ async def vector_search(
             "$project": {
                 "_id": 1,
                 "text": 1,
+                "redacted_text": 1,
                 "metadata": 1,
                 "score": {"$meta": "vectorSearchScore"},
             }

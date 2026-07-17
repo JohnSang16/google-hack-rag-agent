@@ -1,0 +1,21 @@
+# Controls what `gcloud run deploy --source .` uploads.
+# NOTE: org_config.json is deliberately NOT listed — the private org config
+# must ship with the deploy even though git ignores it.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+src/frontend/node_modules/
+src/frontend/dist/
+tests/
+discord_export/
+drive_oauth_token.json
+drive_client_secrets.json
+service_account.json
+_bmad/
+docs/

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, roadmap-fixes]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Unit tests only. Integration suites (Atlas, Google APIs) self-skip or
+      # need credentials; the eval smoke gate needs a Gemini key and runs
+      # locally for now. Org config falls back to org_config.example.json.
+      - run: >
+          python -m pytest -q
+          tests/test_send_intent.py
+          tests/test_org_config.py
+          tests/test_auth_tiers.py
+          tests/test_financial_guard.py
+          tests/test_reranker_failure.py

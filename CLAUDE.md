@@ -13,6 +13,22 @@ Reference files: docs/ARCHITECTURE.md, docs/DATA_MAP.md, docs/PII_RULES.md, docs
 
 ---
 
+## Current State (post-hackathon, 2026-07)
+
+The hackathon instructions below are historical context. The system has since been hardened; know these before changing code:
+
+- **One pipeline.** `run()` is a thin consumer of `run_stream()` in `src/agent/agent.py`. Never reintroduce a second pipeline implementation.
+- **Access tiers.** Discord OAuth (`src/api/auth.py`) maps server roles to anonymous/member/exec/admin capability objects (`src/access.py`). Thread `access` through any new agent behavior; DEMO_MODE is only the legacy fallback when auth env vars are unset.
+- **Intent is one structured call.** `classify_intent` in `src/agent/mode_classifier.py` returns `{mode, wants_calendar, wants_email, send_now}`. Never add keyword-sniffing for actions; the word "sponsor" once auto-sent a real email.
+- **Email never auto-sends.** PLAN drafts only; sending requires the explicit send-intent turn plus admin capability.
+- **Org-specific values live in `org_config.json`** (gitignored, shipped to Cloud Run via .gcloudignore). Never hardcode file ids, sensitive phrases, event maps, or demo seeds in source.
+- **Chunks carry `metadata.access_level`** judged at ingestion (`src/ingestion/access_classifier.py`) with a `redacted_text` rendition. Enforcement is in `_filter_sensitive_chunks`.
+- **Ingestion is the weekly sync** (`python -m src.ingestion.run_weekly_sync`, `--dry-run` first). Discord chunks are date-keyed (`date_chunk_key`); do not go back to sequential chunk indexes.
+- **Tests:** `python -m pytest tests/` (unit suite runs in CI; integration suites need credentials). Keep new behavior pinned by tests.
+- Backlog and priorities live in the vault roadmap (`progsu/projects/rag-agent-roadmap.md`), not TODO.md.
+
+---
+
 ## What This Is
 
 An AI chief of staff for student tech org leaders. It ingests a year of organizational data from Google Drive and Discord, stores it in MongoDB Atlas, and lets a Gemini agent answer strategic questions with cited sources and take actions (like creating Google Docs).

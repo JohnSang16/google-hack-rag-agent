@@ -30,25 +30,18 @@ MIN_SCORE = 6
 MIN_RESULTS = 2
 MAX_CHUNK_CHARS = 800
 
+# Score assigned to every chunk when the reranker call fails or returns a
+# malformed response. Must stay below the agent's confidence gate (5) even
+# after the +1.5 authority boost, so a reranker outage degrades to
+# "not enough info" instead of ungated generation.
+FAILURE_SCORE = 3
+
 # Authoritative sources: one source of truth per topic area.
 # Chunks from these files get a +1.5 score boost after reranking.
-_AUTHORITATIVE_FILE_IDS = {
-    "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",  # FAQs - Hacklanta
-    "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",  # Hacklanta Master Doc
-    "1ik1VanYAqzWWDnZC-Nu5mwfK78tmrtPP4TwEqZO3qrk",  # Hacklanta Run of Show
-    "1aS9sc-Vq7LEZTJblleow4sRGTpHPRaU_AM2ihBHbqD4",  # Hacklanta Winners and End Metrics
-    "1ttOfvbPcSPQXV19qH3Pw1H9H-BX9p01rHYo_gdcT2k0",  # post hacklanta growth stuff
-    "1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs",  # Growth Master Doc
-    "1G3sGarC2J31ihYH_QqCwB4Q0Dcwr3TYfwuGjVz4DSlQ",  # FINANCE: 2025-2026 Bookkeeping
-    "17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww",  # Progsu Org Structure
-    "1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc",  # Roles and Responsibilities 2025
-    "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",  # Operations Meeting Notes
-    # Aggregate summaries — pre-synthesized data for the three demo queries
-    "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",  # Combined Attendance Fall25/Spring26
-    "1vkXd1xD-Q8tWhYFLhsTUQkV9i6xIsMNskXxFaGRJYwI",  # Hacklanta Judge Scoring + Outcomes
-    "1vses3E-EY6PRlW5NdSTDBtXUkUPvSXLlOXviVTyhooI",  # Hacklanta Email/SMS Campaign
-    "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",  # Involvement Fair Signups Fall25
-}
+# The ids live in org_config.json (private, gitignored), not in source.
+from src.org_config import cfg_list
+
+_AUTHORITATIVE_FILE_IDS = frozenset(cfg_list("authoritative_file_ids"))
 _AUTHORITY_BOOST = 1.5
 
 
@@ -89,11 +82,11 @@ def _batch_score(query: str, chunks: list[dict], client: genai.Client) -> list[i
         scores = json.loads(raw)
         if isinstance(scores, list) and len(scores) == len(chunks):
             return [min(max(int(s), 0), 10) for s in scores]
-        logger.warning("Unexpected reranker response shape, defaulting scores to 5")
-        return [5] * len(chunks)
+        logger.warning("Unexpected reranker response shape, defaulting scores to %d", FAILURE_SCORE)
+        return [FAILURE_SCORE] * len(chunks)
     except Exception as e:
-        logger.warning("Batch reranker failed, defaulting all scores to 5: %s", e)
-        return [5] * len(chunks)
+        logger.warning("Batch reranker failed, defaulting all scores to %d: %s", FAILURE_SCORE, e)
+        return [FAILURE_SCORE] * len(chunks)
 
 
 def rerank(query: str, chunks: list[dict], client: genai.Client = None) -> list[dict]:

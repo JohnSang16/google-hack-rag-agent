@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentMessage, HistoryItem, Message } from '../types';
+import type { Me } from '../auth';
+import { authHeaders, captureTokenFromHash, clearToken, getToken } from '../auth';
 import MessageBubble from './MessageBubble';
 import DocPanel from './DocPanel';
 import ClaudeChatInput from './ui/claude-style-chat-input';
@@ -68,9 +70,24 @@ export default function ChatInterface() {
   const [latestPlanDocUrl, setLatestPlanDocUrl] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [authOn, setAuthOn] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/cache/clear`, { method: 'POST' }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    captureTokenFromHash();
+    fetch(`${API_BASE}/auth/me`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: Me | null) => {
+        if (!d) return;
+        setAuthOn(d.auth_configured);
+        if (getToken() && d.tier !== 'anonymous') setMe(d);
+        else if (getToken()) clearToken();
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -109,7 +126,7 @@ export default function ChatInterface() {
       const filters = latestPlanDocUrl ? { plan_doc_url: latestPlanDocUrl } : undefined;
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ query, history, filters }),
         signal: controller.signal,
       });
@@ -215,6 +232,24 @@ export default function ChatInterface() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-0)', fontFamily: 'var(--sans)' }}>
+      {(authOn || me) && (
+        <div className="fixed top-3 right-4 z-40 flex items-center gap-2 text-xs" style={{ color: 'var(--text-400)' }}>
+          {me ? (
+            <>
+              <span className="px-2.5 py-1 rounded-full border font-semibold" style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}>
+                {me.username ?? 'member'} · {me.tier}
+              </span>
+              <button onClick={() => { clearToken(); setMe(null); }} className="hover:underline">
+                Log out
+              </button>
+            </>
+          ) : (
+            <a href={`${API_BASE}/auth/login`} className="px-2.5 py-1 rounded-full border transition-colors" style={{ borderColor: 'var(--text-400)' }}>
+              Log in with Discord
+            </a>
+          )}
+        </div>
+      )}
       <DocPanel
         open={panelMsg !== null}
         onClose={() => setPanelMsg(null)}

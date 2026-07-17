@@ -5,15 +5,19 @@ import logging
 import os
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from src.access import Access, TIER_ANONYMOUS
+from src.org_config import cfg_dict
 from src.agent import agent as _agent
+from src.api.auth import get_access, router as auth_router
 
 load_dotenv()
 
@@ -43,7 +47,9 @@ _BLOCKED_PATTERNS = [
 def _get_client_ip(req: Request) -> str:
     forwarded = req.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use the last hop: clients can prepend arbitrary values to this header,
+        # but the last entry is appended by Cloud Run's own proxy and is trustworthy.
+        return forwarded.split(",")[-1].strip()
     return req.client.host if req.client else "unknown"
 
 
@@ -58,16 +64,22 @@ def _check_rate_limit(ip: str) -> bool:
 
 
 def _check_daily_cap() -> bool:
-    """Return False if the global daily request cap has been reached."""
+    """Return False if the global daily request cap has been reached. Does not count the request."""
     if _DAILY_CAP <= 0:
         return True
+    today = time.strftime("%Y-%m-%d")
+    return _daily_counter.get(today, 0) < _DAILY_CAP
+
+
+def _count_daily_request() -> None:
+    """Count one request against the daily cap. Call only after all other guards pass,
+    so rate-limited or blocked requests don't burn the daily budget."""
     today = time.strftime("%Y-%m-%d")
     # Evict stale dates so the dict doesn't grow unbounded across days
     for k in list(_daily_counter):
         if k != today:
             del _daily_counter[k]
     _daily_counter[today] = _daily_counter.get(today, 0) + 1
-    return _daily_counter[today] <= _DAILY_CAP
 
 
 
@@ -79,6 +91,66 @@ def _check_query(query: str) -> Optional[str]:
         if pattern in q:
             return "That query isn't supported in the demo."
     return None
+
+
+# --- Query logging (query_logs collection on the existing Atlas cluster) ---
+_query_log_collection = None
+
+
+def _get_query_log_collection():
+    global _query_log_collection
+    if _query_log_collection is None:
+        uri = os.environ.get("MONGODB_URI")
+        if not uri:
+            return None
+        import motor.motor_asyncio
+        db_name = os.getenv("MONGODB_DB_NAME", "progsu_intelligence")
+        client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+        _query_log_collection = client[db_name]["query_logs"]
+    return _query_log_collection
+
+
+async def _log_query(
+    query: str,
+    mode: str,
+    ip: str,
+    response_ms: float,
+    confidence: Optional[float] = None,
+    injection_flagged: bool = False,
+    cache_hit: bool = False,
+    user_id: Optional[str] = None,
+    tier: Optional[str] = None,
+) -> None:
+    """Insert one usage record. Best-effort: failures are logged and swallowed
+    so logging can never break a request."""
+    coll = _get_query_log_collection()
+    if coll is None:
+        return
+    try:
+        await coll.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "mode": mode,
+            "query_preview": query[:120],
+            "response_ms": round(response_ms),
+            "confidence": confidence,
+            "injection_flagged": injection_flagged,
+            "cache_hit": cache_hit,
+            "ip_hash": hashlib.sha256(ip.encode()).hexdigest()[:16],
+            "user_id": user_id,
+            "tier": tier,
+        })
+    except Exception as e:
+        logger.warning("Query log insert failed: %s", e)
+
+
+def _log_query_bg(*args, **kwargs) -> None:
+    """Fire-and-forget wrapper so logging adds no request latency."""
+    asyncio.get_running_loop().create_task(_log_query(*args, **kwargs))
+
+
+def _best_confidence(citations) -> Optional[float]:
+    scores = [c.get("relevance_score") for c in (citations or []) if isinstance(c, dict) and c.get("relevance_score") is not None]
+    return max(scores) if scores else None
 
 
 # --- Response cache ---
@@ -94,225 +166,16 @@ _ARTIFACT_FIELDS = (
     "calendar_event_start_date", "gmail_draft_id", "gmail_draft_url",
 )
 
-# Demo seeds — pre-canned responses that survive cache/clear so the demo always
+# Demo seeds: pre-canned responses that survive cache/clear so the demo always
 # returns the same output for the recorded queries regardless of live retrieval.
-# PLAN seed has no artifact URLs; those come from the first live run and are
-# preserved in _LIVE_ARTIFACTS so they survive subsequent cache clears.
-_DEMO_SEEDS: dict[str, dict] = {
-    # RECALL — Q1
-    "What were the key logistics challenges at Hacklanta and how did we solve them?": {
-        "mode": "RECALL",
-        "summary": None,
-        "answer": (
-            "The key logistics challenges at Hacklanta centered on parking, food coordination, "
-            "venue navigation, and check-in flow. Here is how each was handled:\n\n"
-            "**Parking**\n"
-            "- Secured free parking at GSU's G Deck on a first-come, first-served basis\n"
-            "- Paid overflow options available at N and K Decks\n"
-            "- Parking reimbursement offered via Cashapp, Venmo, and Zelle for confirmed attendees\n\n"
-            "**Food and Drinks**\n"
-            "- DoorDash ambassador sponsorship covered food for approximately 150 people, "
-            "saving the org roughly $1,200\n"
-            "- Red Bull and Celsius provided energy drinks; a Red Bull Can Estimation game "
-            "kept attendees engaged at the help desk\n\n"
-            "**Venue Navigation**\n"
-            "- QR code event maps placed at the Help Desk with all room locations\n"
-            "- Restroom directions from key rooms (LIBSO 102, CLSO 103, 105, 107) included in the FAQs\n"
-            "- Non-GSU students directed to show government-issued ID at the security desk or CURVE Lab\n"
-            "- Wi-Fi for non-GSU attendees handled via Eduroam with a quick registration link\n\n"
-            "**Check-in and Opening Ceremonies**\n"
-            "- Centralized in Library South 102 with volunteers on hand to guide attendees"
-        ),
-        "citations": [
-            {
-                "title": "FAQs - Hacklanta",
-                "date": "2026-03-01",
-                "file_id": "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 10.0,
-            },
-            {
-                "title": "Hacklanta Master Doc - Spring 26",
-                "date": "2026-03-01",
-                "file_id": "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 9.5,
-            },
-            {
-                "title": "Operations Meeting Notes",
-                "date": "2026-02-15",
-                "file_id": "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 8.5,
-            },
-        ],
-        "created_doc_url": None,
-        "calendar_event_url": None,
-        "calendar_event_id": None,
-        "calendar_event_start_date": None,
-        "gmail_draft_id": None,
-        "gmail_draft_url": None,
-    },
-    # ANALYZE — Q2
-    "How has our event attendance grown from Fall 2025 to Spring 2026, and which events drove the most engagement?": {
-        "mode": "ANALYZE",
-        "summary": None,
-        "answer": (
-            "Attendance scaled significantly from Fall 2025 into Spring 2026, with two Spring flagship events "
-            "accounting for the majority of the org's total reach for the year.\n\n"
-            "| Event | Semester | Attendance |\n"
-            "| --- | --- | --- |\n"
-            "| Fall Kickoff + Interest Meetings | Fall 2025 | org-building scale |\n"
-            "| Involvement Fair | Fall 2025 | 130+ signups |\n"
-            "| Claude Workshop | Spring 2026 | 200+ |\n"
-            "| Hacklanta | Spring 2026 | 400+ |\n\n"
-            "The inflection point was Spring 2026. The Claude Workshop brought 200+ students to a live session "
-            "with Anthropic ambassador Tyler Sztuka, establishing progsu's ability to attract industry partners. "
-            "Hacklanta followed with 400+ attendees, $20,000 in sponsorships, and $5,000+ in prizes across a "
-            "12-hour event. The largest single-event turnout in the org's history. "
-            "The Fall 2025 slate was intentional org-building; Spring 2026 was the payoff. "
-            "The next phase is replicating that scale consistently, not just as a one-time spike."
-        ),
-        "citations": [
-            {
-                "title": "Combined Attendance Fall 2025 / Spring 2026",
-                "date": "2026-04-01",
-                "file_id": "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/spreadsheets/d/1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 10.0,
-            },
-            {
-                "title": "Growth Master Doc",
-                "date": "2026-04-01",
-                "file_id": "1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 9.0,
-            },
-            {
-                "title": "Involvement Fair Signups Fall 2025",
-                "date": "2025-09-15",
-                "file_id": "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/spreadsheets/d/1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 8.5,
-            },
-        ],
-        "created_doc_url": None,
-        "calendar_event_url": None,
-        "calendar_event_id": None,
-        "calendar_event_start_date": None,
-        "gmail_draft_id": None,
-        "gmail_draft_url": None,
-    },
-    # PLAN — Q3 (artifact URLs are None until first live run, which overwrites this seed)
-    "Create a sponsor packet for Hacklanta II with key metrics from Hacklanta 1, what we're improving, and how sponsors can get involved. Add it to our calendar and email our sponsors.": {
-        "mode": "PLAN",
-        "summary": (
-            "A full sponsor packet for Hacklanta II grounded in Hacklanta 1 metrics: 400+ attendees, "
-            "$20,000 in sponsorships, $5,000+ in prizes. Covers what we proved, what we're improving, "
-            "and three sponsorship tiers with concrete deliverables."
-        ),
-        "answer": (
-            "## Hacklanta II Sponsor Packet\n"
-            "*Generated by progsu Intelligence Agent. Based on Hacklanta 1 post-event data.*\n\n"
-            "---\n\n"
-            "## What We Proved at Hacklanta 1\n\n"
-            "- **400+ attendees** at Georgia State University, the largest student hackathon in progsu history\n"
-            "- **$20,000 in total sponsorships** raised in 5 weeks of outreach\n"
-            "- **$5,000+ in prizes** distributed across 12 hours of competition\n"
-            "- **DoorDash** covered food for ~150 attendees, saving the org approximately $1,200\n"
-            "- **Red Bull and Celsius** provided energy drinks with on-floor brand activation\n"
-            "- Sponsors received booth space, judging roles, and direct access to 400+ student developers\n\n"
-            "---\n\n"
-            "## What We're Improving for Hacklanta II\n\n"
-            "- **Check-in flow:** Moving from paper sign-in to QR-code check-in to eliminate bottlenecks at Library South 102\n"
-            "- **Parking coordination:** Pre-registering parking with GSU to reduce day-of reimbursement overhead\n"
-            "- **Wi-Fi onboarding:** Pre-configured Eduroam links sent to non-GSU attendees before the event\n"
-            "- **Sponsor visibility:** Dedicated sponsor slide deck during opening and closing ceremonies\n"
-            "- **Run of show buffer:** Adding 15-minute buffers between major segments based on Hacklanta 1 timing overruns\n\n"
-            "---\n\n"
-            "## Sponsorship Tiers\n\n"
-            "| Tier | Investment | What You Get |\n"
-            "| --- | --- | --- |\n"
-            "| Title Sponsor | $5,000+ | Name in event title, keynote slot, top booth placement, logo on all materials |\n"
-            "| Gold Sponsor | $2,500 | Booth space, judging panel seat, logo on website and signage |\n"
-            "| Silver Sponsor | $1,000 | Logo on website, social media mention, swag table space |\n"
-            "| In-Kind Sponsor | Food, drinks, prizes | Brand activation on floor, mention in opening ceremonies |\n\n"
-            "---\n\n"
-            "## Why Sponsor progsu\n\n"
-            "- Direct access to 400+ student developers at Georgia State, one of the largest CS programs in the Southeast\n"
-            "- Demonstrated execution: we raised $20k and ran a 12-hour hackathon in 5 weeks\n"
-            "- Sponsor alumni: DoorDash, Red Bull, Celsius, and Anthropic all activated at Hacklanta 1\n"
-            "- Recruiting pipeline: sponsors who hosted booths reported direct interview conversations on the day\n\n"
-            "---\n\n"
-            "## Next Steps\n\n"
-            "- Kickoff planning meeting added to calendar\n"
-            "- Outreach email sent to sponsor contacts from Hacklanta 1\n"
-            "- Confirm venue booking at Library South by end of month\n\n"
-            "*Sources: Hacklanta Master Doc, Operations Meeting Notes, FAQs-Hacklanta, post-event growth data*"
-        ),
-        "citations": [
-            {
-                "title": "Hacklanta Master Doc - Spring 26",
-                "date": "2026-03-01",
-                "file_id": "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 10.0,
-            },
-            {
-                "title": "FAQs - Hacklanta",
-                "date": "2026-03-01",
-                "file_id": "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 9.5,
-            },
-            {
-                "title": "Operations Meeting Notes",
-                "date": "2026-02-15",
-                "file_id": "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",
-                "source_type": "google_drive",
-                "drive_url": "https://docs.google.com/document/d/1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk/edit",
-                "discord_url": None,
-                "messages": None,
-                "relevance_score": 9.0,
-            },
-        ],
-        "created_doc_url": None,
-        "calendar_event_url": None,
-        "calendar_event_id": None,
-        "calendar_event_start_date": None,
-        "gmail_draft_id": None,
-        "gmail_draft_url": None,
-    },
-}
+# The seed content is org-specific and lives in org_config.json (private).
+# PLAN seeds get artifact URLs from the first live run via _LIVE_ARTIFACTS.
+_DEMO_SEEDS: dict = cfg_dict("demo_seeds")
 
 
 def _apply_demo_seeds() -> None:
     for query, value in _DEMO_SEEDS.items():
-        key = _cache_key(query, None)
+        key = _cache_key(query, None, TIER_ANONYMOUS)
         entry = {**value}
         live = _LIVE_ARTIFACTS.get(query, {})
         # Merge in any live artifact URLs preserved from a previous real run
@@ -328,10 +191,12 @@ def _apply_demo_seeds() -> None:
 _NON_CACHE_FILTER_KEYS = frozenset({"plan_doc_url"})
 
 
-def _cache_key(query: str, filters: Optional[dict]) -> str:
-    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses
+def _cache_key(query: str, filters: Optional[dict], tier: str = TIER_ANONYMOUS) -> str:
+    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses.
+    # Tier is part of the key so an exec-tier answer (may include financial figures)
+    # is never replayed to a lower-tier request for the same query text.
     clean = {k: v for k, v in (filters or {}).items() if k not in _NON_CACHE_FILTER_KEYS}
-    payload = query.strip().lower() + json.dumps(clean, sort_keys=True)
+    payload = tier + "|" + query.strip().lower() + json.dumps(clean, sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()
 
 
@@ -351,6 +216,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="progsu Intelligence Agent", version="1.0.0")
+app.include_router(auth_router)
 
 # ALLOWED_ORIGINS env var is a comma-separated list of allowed frontend origins.
 # Default "*" works for local dev; set to your actual frontend URL in production.
@@ -365,7 +231,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Accept"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 
 
@@ -415,14 +281,46 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/admin/stats")
+async def admin_stats(access: Access = Depends(get_access)):
+    """Recent query log records plus simple counts. Admin tier only."""
+    if not access.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    coll = _get_query_log_collection()
+    if coll is None:
+        return {"records": [], "total": 0}
+    records = []
+    async for doc in coll.find({}, {"_id": 0}).sort("ts", -1).limit(50):
+        doc["ts"] = doc["ts"].isoformat() if doc.get("ts") else None
+        records.append(doc)
+    total = await coll.count_documents({})
+    return {"records": records, "total": total}
+
+
 @app.on_event("startup")
 async def startup():
     _apply_demo_seeds()
     logger.info("Demo seeds loaded into cache (%d of %d — PLAN skipped until live run)", len(_response_cache), len(_DEMO_SEEDS))
+    # TTL index: query log rows self-delete after 90 days so the M0 tier
+    # storage cap can never fill up from logging.
+    coll = _get_query_log_collection()
+    if coll is not None:
+        try:
+            await coll.create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+        except Exception as e:
+            logger.warning("query_logs TTL index creation failed: %s", e)
 
 
 @app.post("/cache/clear")
-async def clear_cache():
+async def clear_cache(http_request: Request):
+    # Unauthenticated cache clears let anyone force live Gemini spend.
+    # If ADMIN_TOKEN is set, require it; in DEMO_MODE with no token configured, deny.
+    admin_token = os.environ.get("ADMIN_TOKEN")
+    if admin_token:
+        if http_request.headers.get("x-admin-token") != admin_token:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    elif _DEMO_MODE:
+        raise HTTPException(status_code=403, detail="Forbidden")
     _response_cache.clear()
     _apply_demo_seeds()
     logger.info("Response cache cleared and demo seeds reloaded")
@@ -430,7 +328,7 @@ async def clear_cache():
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, http_request: Request):
+async def chat_stream(request: ChatRequest, http_request: Request, access: Access = Depends(get_access)):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
 
@@ -438,18 +336,23 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
+    rate_key = access.user_id or ip
+    started = time.perf_counter()
 
-    if _DEMO_MODE:
-        if not _check_rate_limit(ip):
+    if access.guarded:
+        if not _check_rate_limit(rate_key):
             raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
         guard_err = _check_query(request.query.strip())
         if guard_err:
+            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
             raise HTTPException(status_code=400, detail=guard_err)
+
+    _count_daily_request()
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
 
     # Per-mode cache replay config — spinner_delay matches demo script slot timing,
@@ -464,6 +367,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
     async def generate():
         if cached and cached.get("mode") != "PLAN":
             logger.info("Cache hit (stream): %s", request.query[:60])
+            _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True, user_id=access.user_id, tier=access.tier)
             mode = cached["mode"]
             cfg = _CACHE_CONFIG.get(mode, _CACHE_CONFIG["RECALL"])
             # Send mode immediately so the frontend can switch to scripted spinner messages.
@@ -488,6 +392,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
                 query=request.query,
                 filters=request.filters or None,
                 history=[h.model_dump() for h in request.history] if request.history else None,
+                access=access,
             ):
                 if event.get("type") == "token":
                     full_answer += event.get("content", "")
@@ -495,11 +400,21 @@ async def chat_stream(request: ChatRequest, http_request: Request):
                     done_event = event
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as e:
-            logger.error("Stream error: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            # Log detail server-side only; str(e) can leak connection strings or key fragments
+            logger.error("Stream error: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Something went wrong generating this response. Please try again.'})}\n\n"
             return
 
         if done_event:
+            _log_query_bg(
+                request.query,
+                done_event.get("mode", "RECALL"),
+                ip,
+                (time.perf_counter() - started) * 1000,
+                confidence=_best_confidence(done_event.get("citations")),
+                user_id=access.user_id,
+                tier=access.tier,
+            )
             entry = {
                 "mode": done_event.get("mode", "RECALL"),
                 "answer": full_answer,
@@ -528,7 +443,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, http_request: Request):
+async def chat(request: ChatRequest, http_request: Request, access: Access = Depends(get_access)):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
 
@@ -536,19 +451,26 @@ async def chat(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
-    if not _check_rate_limit(ip):
-        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+    rate_key = access.user_id or ip
+    started = time.perf_counter()
+    if access.guarded:
+        if not _check_rate_limit(rate_key):
+            raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
-    guard_err = _check_query(request.query.strip())
-    if guard_err:
-        raise HTTPException(status_code=400, detail=guard_err)
+        guard_err = _check_query(request.query.strip())
+        if guard_err:
+            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
+            raise HTTPException(status_code=400, detail=guard_err)
+
+    _count_daily_request()
 
     logger.info("POST /chat: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
     if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])
+        _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True, user_id=access.user_id, tier=access.tier)
         return ChatResponse(**cached)
 
     try:
@@ -556,6 +478,7 @@ async def chat(request: ChatRequest, http_request: Request):
             query=request.query,
             filters=request.filters or None,
             history=[h.model_dump() for h in request.history] if request.history else None,
+            access=access,
         )
         response = ChatResponse(
             mode=result["mode"],
@@ -566,10 +489,19 @@ async def chat(request: ChatRequest, http_request: Request):
         )
         if response.mode != "PLAN":
             _cache_set(cache_key, response.model_dump())
+        _log_query_bg(
+            request.query,
+            response.mode,
+            ip,
+            (time.perf_counter() - started) * 1000,
+            confidence=_best_confidence(result.get("citations")),
+            user_id=access.user_id,
+            tier=access.tier,
+        )
         return response
     except Exception as e:
-        logger.error("Agent error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Agent error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Something went wrong generating this response. Please try again.")
 
 
 if __name__ == "__main__":

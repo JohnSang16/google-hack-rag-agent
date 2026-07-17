@@ -1,0 +1,21 @@
+{
+  "_comment": "Copy to org_config.json and fill with your org's values. org_config.json is gitignored; .gcloudignore ships it to Cloud Run anyway.",
+  "authoritative_file_ids": [
+    "example-drive-file-id-canonical-doc"
+  ],
+  "sensitive_phrases": [
+    "example phrase that drops a retrieved chunk when matched"
+  ],
+  "event_keyword_map": {
+    "example event": "example_event_tag"
+  },
+  "demo_seeds": {
+    "What is an example seeded demo query?": {
+      "mode": "RECALL",
+      "summary": null,
+      "answer": "Example canned answer served from cache for the public demo.",
+      "citations": []
+    }
+  },
+  "drive_root_folder_id": "your-drive-root-folder-id"
+}
