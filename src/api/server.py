@@ -43,7 +43,9 @@ _BLOCKED_PATTERNS = [
 def _get_client_ip(req: Request) -> str:
     forwarded = req.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use the last hop: clients can prepend arbitrary values to this header,
+        # but the last entry is appended by Cloud Run's own proxy and is trustworthy.
+        return forwarded.split(",")[-1].strip()
     return req.client.host if req.client else "unknown"
 
 
@@ -428,7 +430,15 @@ async def startup():
 
 
 @app.post("/cache/clear")
-async def clear_cache():
+async def clear_cache(http_request: Request):
+    # Unauthenticated cache clears let anyone force live Gemini spend.
+    # If ADMIN_TOKEN is set, require it; in DEMO_MODE with no token configured, deny.
+    admin_token = os.environ.get("ADMIN_TOKEN")
+    if admin_token:
+        if http_request.headers.get("x-admin-token") != admin_token:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    elif _DEMO_MODE:
+        raise HTTPException(status_code=403, detail="Forbidden")
     _response_cache.clear()
     _apply_demo_seeds()
     logger.info("Response cache cleared and demo seeds reloaded")
@@ -503,8 +513,9 @@ async def chat_stream(request: ChatRequest, http_request: Request):
                     done_event = event
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as e:
-            logger.error("Stream error: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            # Log detail server-side only; str(e) can leak connection strings or key fragments
+            logger.error("Stream error: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Something went wrong generating this response. Please try again.'})}\n\n"
             return
 
         if done_event:
@@ -578,8 +589,8 @@ async def chat(request: ChatRequest, http_request: Request):
             _cache_set(cache_key, response.model_dump())
         return response
     except Exception as e:
-        logger.error("Agent error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Agent error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Something went wrong generating this response. Please try again.")
 
 
 if __name__ == "__main__":
