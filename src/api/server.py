@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -87,6 +88,62 @@ def _check_query(query: str) -> Optional[str]:
         if pattern in q:
             return "That query isn't supported in the demo."
     return None
+
+
+# --- Query logging (query_logs collection on the existing Atlas cluster) ---
+_query_log_collection = None
+
+
+def _get_query_log_collection():
+    global _query_log_collection
+    if _query_log_collection is None:
+        uri = os.environ.get("MONGODB_URI")
+        if not uri:
+            return None
+        import motor.motor_asyncio
+        db_name = os.getenv("MONGODB_DB_NAME", "progsu_intelligence")
+        client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+        _query_log_collection = client[db_name]["query_logs"]
+    return _query_log_collection
+
+
+async def _log_query(
+    query: str,
+    mode: str,
+    ip: str,
+    response_ms: float,
+    confidence: Optional[float] = None,
+    injection_flagged: bool = False,
+    cache_hit: bool = False,
+) -> None:
+    """Insert one usage record. Best-effort: failures are logged and swallowed
+    so logging can never break a request."""
+    coll = _get_query_log_collection()
+    if coll is None:
+        return
+    try:
+        await coll.insert_one({
+            "ts": datetime.now(timezone.utc),
+            "mode": mode,
+            "query_preview": query[:120],
+            "response_ms": round(response_ms),
+            "confidence": confidence,
+            "injection_flagged": injection_flagged,
+            "cache_hit": cache_hit,
+            "ip_hash": hashlib.sha256(ip.encode()).hexdigest()[:16],
+        })
+    except Exception as e:
+        logger.warning("Query log insert failed: %s", e)
+
+
+def _log_query_bg(*args, **kwargs) -> None:
+    """Fire-and-forget wrapper so logging adds no request latency."""
+    asyncio.get_running_loop().create_task(_log_query(*args, **kwargs))
+
+
+def _best_confidence(citations) -> Optional[float]:
+    scores = [c.get("relevance_score") for c in (citations or []) if isinstance(c, dict) and c.get("relevance_score") is not None]
+    return max(scores) if scores else None
 
 
 # --- Response cache ---
@@ -454,6 +511,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
+    started = time.perf_counter()
 
     if _DEMO_MODE:
         if not _check_rate_limit(ip):
@@ -461,6 +519,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
 
         guard_err = _check_query(request.query.strip())
         if guard_err:
+            _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True)
             raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
@@ -482,6 +541,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
     async def generate():
         if cached and cached.get("mode") != "PLAN":
             logger.info("Cache hit (stream): %s", request.query[:60])
+            _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True)
             mode = cached["mode"]
             cfg = _CACHE_CONFIG.get(mode, _CACHE_CONFIG["RECALL"])
             # Send mode immediately so the frontend can switch to scripted spinner messages.
@@ -519,6 +579,13 @@ async def chat_stream(request: ChatRequest, http_request: Request):
             return
 
         if done_event:
+            _log_query_bg(
+                request.query,
+                done_event.get("mode", "RECALL"),
+                ip,
+                (time.perf_counter() - started) * 1000,
+                confidence=_best_confidence(done_event.get("citations")),
+            )
             entry = {
                 "mode": done_event.get("mode", "RECALL"),
                 "answer": full_answer,
@@ -555,11 +622,13 @@ async def chat(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
+    started = time.perf_counter()
     if not _check_rate_limit(ip):
         raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
     guard_err = _check_query(request.query.strip())
     if guard_err:
+        _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True)
         raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
@@ -570,6 +639,7 @@ async def chat(request: ChatRequest, http_request: Request):
     cached = _cache_get(cache_key)
     if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])
+        _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True)
         return ChatResponse(**cached)
 
     try:
@@ -587,6 +657,13 @@ async def chat(request: ChatRequest, http_request: Request):
         )
         if response.mode != "PLAN":
             _cache_set(cache_key, response.model_dump())
+        _log_query_bg(
+            request.query,
+            response.mode,
+            ip,
+            (time.perf_counter() - started) * 1000,
+            confidence=_best_confidence(result.get("citations")),
+        )
         return response
     except Exception as e:
         logger.error("Agent error: %s", e, exc_info=True)
