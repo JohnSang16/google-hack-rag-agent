@@ -8,6 +8,7 @@ from typing import Optional
 from google import genai
 from dotenv import load_dotenv
 
+from src.access import Access, legacy_default
 from src.agent.mode_classifier import classify_mode, _is_chat as _is_chat_query
 from src.agent.tools.retrieve import retrieve_context, format_context_for_prompt
 from src.agent.tools.create_doc import create_google_doc
@@ -70,33 +71,38 @@ def _is_financial_query(query: str) -> bool:
     return bool(_DOLLAR_RE.search(q)) or any(t in q for t in _FINANCIAL_QUERY_TERMS)
 
 
-def _filter_sensitive_chunks(chunks: list[dict]) -> list[dict]:
-    """Drop chunks that contain sensitive internal political content,
-    and in DEMO_MODE any chunk carrying financial data."""
+def _filter_sensitive_chunks(chunks: list[dict], restrict_financial: Optional[bool] = None) -> list[dict]:
+    """Drop chunks that contain sensitive internal political content, and any
+    chunk carrying financial data when the caller's access restricts it."""
+    if restrict_financial is None:
+        restrict_financial = _DEMO_MODE
     safe = []
     for c in chunks:
         text_lower = c.get("text", "").lower()
         if any(phrase in text_lower for phrase in _SENSITIVE_PHRASES):
             logger.info("Filtered sensitive chunk: %s", c.get("metadata", {}).get("file_title", "unknown"))
             continue
-        if _DEMO_MODE and _is_financial_chunk(c):
-            logger.info("Filtered financial chunk (demo mode): %s", c.get("metadata", {}).get("file_title", "unknown"))
+        if restrict_financial and _is_financial_chunk(c):
+            logger.info("Filtered financial chunk (restricted access): %s", c.get("metadata", {}).get("file_title", "unknown"))
             continue
         safe.append(c)
     return safe
 
 
-if _DEMO_MODE:
-    _FINANCIAL_RULE = (
-        "- **Never output specific dollar amounts, budgets, sponsorship totals, or any financial figures**, "
-        "even if present in retrieved context. If asked for financial details, say detailed financial records "
-        "are restricted and to ask the exec board directly."
-    )
-else:
-    _FINANCIAL_RULE = (
-        "- Financial figures from context are internal. When outputting specific dollar amounts, "
-        "note that they are internal figures not for external sharing."
-    )
+_FINANCIAL_RULE_RESTRICTED = (
+    "- **Never output specific dollar amounts, budgets, sponsorship totals, or any financial figures**, "
+    "even if present in retrieved context. If asked for financial details, say detailed financial records "
+    "are restricted and to ask the exec board directly."
+)
+_FINANCIAL_RULE_INTERNAL = (
+    "- Financial figures from context are internal. When outputting specific dollar amounts, "
+    "note that they are internal figures not for external sharing."
+)
+
+_PLAN_GATED_MSG = (
+    "PLAN mode (creating docs and calendar events) requires exec access. "
+    "Ask an exec board member to run this, or try a RECALL or ANALYZE question instead."
+)
 
 _ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
 
@@ -505,13 +511,18 @@ async def run(
     filters: Optional[dict] = None,
     history: Optional[list[dict]] = None,
     client: genai.Client = None,
+    access: Optional[Access] = None,
 ) -> dict:
     """
     Full agent pipeline: classify → retrieve → generate → (create doc if PLAN).
     Returns dict with mode, answer, citations, created_doc_url.
+    access carries the caller's tier capabilities; None falls back to the
+    deployment-wide DEMO_MODE behavior.
     """
     if client is None:
         client = _get_client()
+    if access is None:
+        access = legacy_default()
 
     if not _is_meaningful_query(query):
         return {
@@ -540,9 +551,9 @@ async def run(
             answer = "Try asking: \"What were the key logistics challenges at Hacklanta?\", \"How has our attendance grown?\", or \"Draft a planning brief for our next hackathon.\""
         return {"mode": "CHAT", "answer": answer, "citations": [], "created_doc_url": None}
 
-    # Financial queries get a canned response in the public demo; no retrieval spend
-    if _DEMO_MODE and _is_financial_query(query):
-        logger.info("DEMO_MODE: financial query blocked with canned response")
+    # Financial queries get a canned response for restricted tiers; no retrieval spend
+    if not access.financial_access and _is_financial_query(query):
+        logger.info("Financial query blocked with canned response (tier: %s)", access.tier)
         return {"mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None}
 
     # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
@@ -564,6 +575,11 @@ async def run(
     if mode == "CHAT":
         return {"mode": "CHAT", "answer": "Ask me about Hacklanta, our attendance growth, or have me draft a planning doc.", "citations": [], "created_doc_url": None}
 
+    # PLAN creates real Drive docs and calendar events; exec tier and up only
+    if mode == "PLAN" and not access.can_plan:
+        logger.info("PLAN mode gated (tier: %s)", access.tier)
+        return {"mode": "PLAN", "answer": _PLAN_GATED_MSG, "citations": [], "created_doc_url": None}
+
     # Confidence gate: if best chunk score is too low, don't hallucinate
     _LOW_CONFIDENCE_THRESHOLD = 5
     if chunks:
@@ -578,13 +594,13 @@ async def run(
             }
 
     # 4. Generate answer
-    chunks = _filter_sensitive_chunks(chunks)
+    chunks = _filter_sensitive_chunks(chunks, restrict_financial=not access.financial_access)
     history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)
         prompt = _ANSWER_PROMPT.format(
             mode=mode, query=query, context=context_block, history_section=history_section,
-            financial_rule=_FINANCIAL_RULE,
+            financial_rule=_FINANCIAL_RULE_INTERNAL if access.financial_access else _FINANCIAL_RULE_RESTRICTED,
         )
     else:
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
@@ -642,15 +658,20 @@ async def run_stream(
     filters: Optional[dict] = None,
     history: Optional[list[dict]] = None,
     client: genai.Client = None,
+    access: Optional[Access] = None,
 ):
     """
     Streaming pipeline. Yields SSE event dicts:
       {type: "mode", mode: str}
       {type: "token", content: str}
       {type: "done", mode, answer, citations, created_doc_url, summary}
+    access carries the caller's tier capabilities; None falls back to the
+    deployment-wide DEMO_MODE behavior.
     """
     if client is None:
         client = _get_client()
+    if access is None:
+        access = legacy_default()
 
     if not _is_meaningful_query(query):
         yield {"type": "mode", "mode": "RECALL"}
@@ -678,8 +699,8 @@ async def run_stream(
 
         plan_doc_url = (filters or {}).get("plan_doc_url", "")
         if plan_content:
-            if _DEMO_MODE:
-                msg = "Email sending is not available in this demo."
+            if not access.can_gmail_send:
+                msg = "Email sending is not available at your access level."
                 yield {"type": "token", "content": msg}
                 yield {"type": "done", "mode": "CHAT", "answer": msg, "citations": [], "created_doc_url": None, "summary": None, "gmail_draft_id": None, "gmail_draft_url": None, "calendar_event_url": None, "calendar_event_id": None, "calendar_event_start_date": None}
                 return
@@ -740,9 +761,9 @@ async def run_stream(
         yield {"type": "done", "mode": "CHAT", "answer": full, "citations": [], "created_doc_url": None, "summary": None}
         return
 
-    # Financial queries get a canned response in the public demo; no retrieval spend
-    if _DEMO_MODE and _is_financial_query(query):
-        logger.info("DEMO_MODE: financial query blocked with canned response")
+    # Financial queries get a canned response for restricted tiers; no retrieval spend
+    if not access.financial_access and _is_financial_query(query):
+        logger.info("Financial query blocked with canned response (tier: %s)", access.tier)
         yield {"type": "mode", "mode": "RECALL"}
         yield {"type": "token", "content": _FINANCIAL_RESTRICTED_MSG}
         yield {"type": "done", "mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None, "summary": None}
@@ -771,6 +792,13 @@ async def run_stream(
 
     yield {"type": "mode", "mode": mode}
 
+    # PLAN creates real Drive docs and calendar events; exec tier and up only
+    if mode == "PLAN" and not access.can_plan:
+        logger.info("PLAN mode gated (tier: %s)", access.tier)
+        yield {"type": "token", "content": _PLAN_GATED_MSG}
+        yield {"type": "done", "mode": "PLAN", "answer": _PLAN_GATED_MSG, "citations": [], "created_doc_url": None, "summary": None}
+        return
+
     # Confidence gate
     if chunks:
         best_score = max(c.get("relevance_score", 0) for c in chunks)
@@ -781,13 +809,13 @@ async def run_stream(
             return
 
     # Build prompt
-    chunks = _filter_sensitive_chunks(chunks)
+    chunks = _filter_sensitive_chunks(chunks, restrict_financial=not access.financial_access)
     history_section = _build_history_section(history or [])
     if chunks:
         context_block = format_context_for_prompt(chunks)
         prompt = _STREAM_ANSWER_PROMPT.format(
             mode=mode, query=query, context=context_block, history_section=history_section,
-            financial_rule=_FINANCIAL_RULE,
+            financial_rule=_FINANCIAL_RULE_INTERNAL if access.financial_access else _FINANCIAL_RULE_RESTRICTED,
         )
     else:
         prompt = _STREAM_NO_CONTEXT_PROMPT.format(query=query)
@@ -854,8 +882,8 @@ async def run_stream(
             logger.error("Google Doc creation failed: %s", e)
 
         if wants_calendar:
-            if _DEMO_MODE:
-                logger.info("DEMO_MODE: skipping Calendar event creation")
+            if not access.can_calendar:
+                logger.info("Calendar event creation skipped (tier: %s)", access.tier)
             else:
                 try:
                     heading_match = re.search(r'^#{1,2}\s+(.+)$', full_answer, re.MULTILINE)
@@ -870,8 +898,8 @@ async def run_stream(
                     logger.error("Calendar event creation failed: %s", e)
 
         if wants_email and created_doc_url:
-            if _DEMO_MODE:
-                logger.info("DEMO_MODE: skipping Gmail draft/send")
+            if not access.can_gmail_send:
+                logger.info("Gmail draft/send skipped (tier: %s)", access.tier)
             else:
                 try:
                     email_prompt = _OUTREACH_EMAIL_PROMPT.format(
@@ -901,7 +929,7 @@ async def run_stream(
                 except Exception as e:
                     logger.error("Auto-email failed: %s", e)
 
-        if _DEMO_MODE and (wants_calendar or (wants_email and created_doc_url)):
+        if (wants_calendar and not access.can_calendar) or (wants_email and created_doc_url and not access.can_gmail_send):
             full_answer += _DEMO_DISABLED_MSG
 
         logger.info("PLAN artifacts: doc=%s cal=%s email=%s", created_doc_url, calendar_event_url, bool(wants_email))

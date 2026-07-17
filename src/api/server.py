@@ -9,12 +9,14 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from src.access import Access
 from src.agent import agent as _agent
+from src.api.auth import get_access, router as auth_router
 
 load_dotenv()
 
@@ -115,6 +117,8 @@ async def _log_query(
     confidence: Optional[float] = None,
     injection_flagged: bool = False,
     cache_hit: bool = False,
+    user_id: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> None:
     """Insert one usage record. Best-effort: failures are logged and swallowed
     so logging can never break a request."""
@@ -131,6 +135,8 @@ async def _log_query(
             "injection_flagged": injection_flagged,
             "cache_hit": cache_hit,
             "ip_hash": hashlib.sha256(ip.encode()).hexdigest()[:16],
+            "user_id": user_id,
+            "tier": tier,
         })
     except Exception as e:
         logger.warning("Query log insert failed: %s", e)
@@ -416,6 +422,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="progsu Intelligence Agent", version="1.0.0")
+app.include_router(auth_router)
 
 # ALLOWED_ORIGINS env var is a comma-separated list of allowed frontend origins.
 # Default "*" works for local dev; set to your actual frontend URL in production.
@@ -430,7 +437,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Accept"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 
 
@@ -480,6 +487,22 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/admin/stats")
+async def admin_stats(access: Access = Depends(get_access)):
+    """Recent query log records plus simple counts. Admin tier only."""
+    if not access.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    coll = _get_query_log_collection()
+    if coll is None:
+        return {"records": [], "total": 0}
+    records = []
+    async for doc in coll.find({}, {"_id": 0}).sort("ts", -1).limit(50):
+        doc["ts"] = doc["ts"].isoformat() if doc.get("ts") else None
+        records.append(doc)
+    total = await coll.count_documents({})
+    return {"records": records, "total": total}
+
+
 @app.on_event("startup")
 async def startup():
     _apply_demo_seeds()
@@ -503,7 +526,7 @@ async def clear_cache(http_request: Request):
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, http_request: Request):
+async def chat_stream(request: ChatRequest, http_request: Request, access: Access = Depends(get_access)):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
 
@@ -511,15 +534,16 @@ async def chat_stream(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
+    rate_key = access.user_id or ip
     started = time.perf_counter()
 
-    if _DEMO_MODE:
-        if not _check_rate_limit(ip):
+    if access.guarded:
+        if not _check_rate_limit(rate_key):
             raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
         guard_err = _check_query(request.query.strip())
         if guard_err:
-            _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True)
+            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
             raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
@@ -541,7 +565,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
     async def generate():
         if cached and cached.get("mode") != "PLAN":
             logger.info("Cache hit (stream): %s", request.query[:60])
-            _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True)
+            _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True, user_id=access.user_id, tier=access.tier)
             mode = cached["mode"]
             cfg = _CACHE_CONFIG.get(mode, _CACHE_CONFIG["RECALL"])
             # Send mode immediately so the frontend can switch to scripted spinner messages.
@@ -566,6 +590,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
                 query=request.query,
                 filters=request.filters or None,
                 history=[h.model_dump() for h in request.history] if request.history else None,
+                access=access,
             ):
                 if event.get("type") == "token":
                     full_answer += event.get("content", "")
@@ -585,6 +610,8 @@ async def chat_stream(request: ChatRequest, http_request: Request):
                 ip,
                 (time.perf_counter() - started) * 1000,
                 confidence=_best_confidence(done_event.get("citations")),
+                user_id=access.user_id,
+                tier=access.tier,
             )
             entry = {
                 "mode": done_event.get("mode", "RECALL"),
@@ -614,7 +641,7 @@ async def chat_stream(request: ChatRequest, http_request: Request):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, http_request: Request):
+async def chat(request: ChatRequest, http_request: Request, access: Access = Depends(get_access)):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
 
@@ -622,14 +649,16 @@ async def chat(request: ChatRequest, http_request: Request):
         raise HTTPException(status_code=503, detail="Demo capacity reached for today. Check back tomorrow.")
 
     ip = _get_client_ip(http_request)
+    rate_key = access.user_id or ip
     started = time.perf_counter()
-    if not _check_rate_limit(ip):
-        raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
+    if access.guarded:
+        if not _check_rate_limit(rate_key):
+            raise HTTPException(status_code=429, detail="Too many requests. Please wait a moment.")
 
-    guard_err = _check_query(request.query.strip())
-    if guard_err:
-        _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True)
-        raise HTTPException(status_code=400, detail=guard_err)
+        guard_err = _check_query(request.query.strip())
+        if guard_err:
+            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
+            raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
 
@@ -639,7 +668,7 @@ async def chat(request: ChatRequest, http_request: Request):
     cached = _cache_get(cache_key)
     if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])
-        _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True)
+        _log_query_bg(request.query, cached["mode"], ip, (time.perf_counter() - started) * 1000, cache_hit=True, user_id=access.user_id, tier=access.tier)
         return ChatResponse(**cached)
 
     try:
@@ -647,6 +676,7 @@ async def chat(request: ChatRequest, http_request: Request):
             query=request.query,
             filters=request.filters or None,
             history=[h.model_dump() for h in request.history] if request.history else None,
+            access=access,
         )
         response = ChatResponse(
             mode=result["mode"],
@@ -663,6 +693,8 @@ async def chat(request: ChatRequest, http_request: Request):
             ip,
             (time.perf_counter() - started) * 1000,
             confidence=_best_confidence(result.get("citations")),
+            user_id=access.user_id,
+            tier=access.tier,
         )
         return response
     except Exception as e:

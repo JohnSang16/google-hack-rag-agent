@@ -8,7 +8,8 @@ answered with a real figure cited from an untagged Discord chunk.
 """
 from src.agent.agent import (
     _ANSWER_PROMPT,
-    _FINANCIAL_RULE,
+    _FINANCIAL_RULE_INTERNAL,
+    _FINANCIAL_RULE_RESTRICTED,
     _STREAM_ANSWER_PROMPT,
     _is_financial_chunk,
     _is_financial_query,
@@ -49,11 +50,12 @@ def test_ordinary_query_passes():
 
 def test_answer_prompts_format_with_financial_rule():
     for template in (_ANSWER_PROMPT, _STREAM_ANSWER_PROMPT):
-        rendered = template.format(
-            mode="RECALL",
-            query="q",
-            context="ctx",
-            history_section="",
-            financial_rule=_FINANCIAL_RULE,
-        )
-        assert _FINANCIAL_RULE in rendered
+        for rule in (_FINANCIAL_RULE_RESTRICTED, _FINANCIAL_RULE_INTERNAL):
+            rendered = template.format(
+                mode="RECALL",
+                query="q",
+                context="ctx",
+                history_section="",
+                financial_rule=rule,
+            )
+            assert rule in rendered
