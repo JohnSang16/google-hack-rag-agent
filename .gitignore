@@ -173,3 +173,4 @@ _bmad-output/
 
 # Org-specific private config (Section 5) — example stays committed
 org_config.json
+!org_config.example.json
