@@ -35,7 +35,12 @@ def load_org_config() -> dict:
                     logger.info("Org config loaded from %s", path.name)
                     break
                 except Exception as e:
-                    logger.error("Failed to parse %s: %s", path, e)
+                    # A present-but-broken config file is a misconfiguration, not
+                    # an absent one. Silently falling through to the next
+                    # candidate (e.g. the generic example config) would quietly
+                    # disable org-specific safety guards like sensitive_phrases —
+                    # fail loud instead of guessing.
+                    raise RuntimeError(f"{path} exists but failed to parse: {e}") from e
         if _cache is None:
             logger.warning("No org config found; running with empty config")
             _cache = {}
