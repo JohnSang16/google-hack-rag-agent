@@ -41,7 +41,7 @@ _SENSITIVE_PHRASES = tuple(cfg_list("sensitive_phrases"))
 # 2. Legacy untagged chunks fall back to the blunt keyword/regex scan, because
 #    a doc_type filter alone was live-proven insufficient (casual dollar
 #    figures in untagged Discord chunks).
-from src.financial_signals import DOLLAR_RE as _DOLLAR_RE, has_financial_signals
+from src.financial_signals import CURRENCY_SYMBOL_RE as _DOLLAR_RE, has_financial_signals
 
 _FINANCIAL_RESTRICTED_MSG = "Detailed financial records are restricted in this demo. Ask your exec board directly."
 

@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.access import Access
+from src.access import Access, TIER_ANONYMOUS
 from src.org_config import cfg_dict
 from src.agent import agent as _agent
 from src.api.auth import get_access, router as auth_router
@@ -175,7 +175,7 @@ _DEMO_SEEDS: dict = cfg_dict("demo_seeds")
 
 def _apply_demo_seeds() -> None:
     for query, value in _DEMO_SEEDS.items():
-        key = _cache_key(query, None)
+        key = _cache_key(query, None, TIER_ANONYMOUS)
         entry = {**value}
         live = _LIVE_ARTIFACTS.get(query, {})
         # Merge in any live artifact URLs preserved from a previous real run
@@ -191,10 +191,12 @@ def _apply_demo_seeds() -> None:
 _NON_CACHE_FILTER_KEYS = frozenset({"plan_doc_url"})
 
 
-def _cache_key(query: str, filters: Optional[dict]) -> str:
-    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses
+def _cache_key(query: str, filters: Optional[dict], tier: str = TIER_ANONYMOUS) -> str:
+    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses.
+    # Tier is part of the key so an exec-tier answer (may include financial figures)
+    # is never replayed to a lower-tier request for the same query text.
     clean = {k: v for k, v in (filters or {}).items() if k not in _NON_CACHE_FILTER_KEYS}
-    payload = query.strip().lower() + json.dumps(clean, sort_keys=True)
+    payload = tier + "|" + query.strip().lower() + json.dumps(clean, sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()
 
 
@@ -350,7 +352,7 @@ async def chat_stream(request: ChatRequest, http_request: Request, access: Acces
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
 
     # Per-mode cache replay config — spinner_delay matches demo script slot timing,
@@ -464,7 +466,7 @@ async def chat(request: ChatRequest, http_request: Request, access: Access = Dep
 
     logger.info("POST /chat: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
     if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])

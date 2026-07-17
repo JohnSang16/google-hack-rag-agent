@@ -118,6 +118,16 @@ def test_sweep_deleted_files_purges_gone_sources():
     state.delete_one.assert_called_once_with({"source_id": "gone-file"})
 
 
+def test_sweep_deleted_files_refuses_on_empty_walk():
+    # An empty walked_file_ids set (Drive walk failure) must never be treated
+    # as "everything was deleted" — that would wipe the whole corpus via $nin: [].
+    coll = MagicMock()
+    state = MagicMock()
+    assert sweep_deleted_files(coll, state, walked_file_ids=set()) == 0
+    state.find.assert_not_called()
+    coll.delete_many.assert_not_called()
+
+
 def test_window_floor_key_is_a_recent_date_key():
     floor = _window_floor_key(14)
     assert floor > LEGACY_CHUNK_KEY_CEILING

@@ -105,3 +105,9 @@ def test_signals_trigger_matches_expected_cases():
     assert has_financial_signals("the budget was tight")
     assert has_financial_signals("saves us like $1200")
     assert not has_financial_signals("we met at the library")
+
+
+def test_signals_catch_bare_thousands_and_foreign_currency():
+    assert has_financial_signals("we paid the venue 1,200 up front")
+    assert has_financial_signals("sponsor sent over €500 for swag")
+    assert has_financial_signals("invoice was for 300 CAD")
