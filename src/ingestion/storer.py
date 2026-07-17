@@ -26,12 +26,13 @@ def store_chunk(
     embedding: list,
     metadata: dict,
     collection: Optional[Collection] = None,
+    redacted_text: Optional[str] = None,
 ) -> str:
     """Upsert a single chunk by file_id + chunk_index. Returns the document _id as string."""
     if collection is None:
         collection = get_collection()
 
-    doc = {"text": text, "embedding": embedding, "metadata": metadata}
+    doc = {"text": text, "embedding": embedding, "metadata": metadata, "redacted_text": redacted_text}
     file_id = metadata["file_id"]
     chunk_index = metadata["chunk_index"]
 

@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 from google import genai
 
 from src.org_config import load_org_config
+from src.ingestion.access_classifier import classify_chunk_access
 from src.ingestion.discord_fetcher import DEFAULT_WINDOW_DAYS, fetch_messages_window, list_text_channels
 from src.ingestion.discord_reader import LEGACY_CHUNK_KEY_CEILING, chunks_from_messages, date_chunk_key
 from src.ingestion.drive_reader import get_drive_service
@@ -133,6 +134,7 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
 
     collection = get_collection()
     state_coll = get_state_collection()
+    client = None if dry_run else _gemini_client()
     stats = {"channels": 0, "stored": 0, "hash_skipped": 0, "noise_filtered": 0, "swept": 0, "errors": 0, "would_sync": []}
     window_floor = _window_floor_key(window_days)
 
@@ -186,9 +188,11 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
                     stats["noise_filtered"] += 1
                     hashes[key] = digest  # remember the verdict, skip next run too
                     continue
+                access = classify_chunk_access(text, client)
                 doc = {
                     "text": text,
                     "embedding": get_embedding(text),
+                    "redacted_text": access["redacted"],
                     "metadata": {
                         "source_type": "discord",
                         "doc_type": _doc_type_for_channel(name),
@@ -199,6 +203,7 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
                         "file_id": display_file_id,
                         "file_title": f"Discord #{name}",
                         "channel_id": channel_id,
+                        "access_level": access["level"],
                         "chunk_index": chunk["chunk_index"],
                         "source_heading": f"{name}, {chunk['date']}",
                         "discord_url": chunk.get("discord_url"),

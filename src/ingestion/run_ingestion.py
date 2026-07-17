@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 # Allow running from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
+from src.ingestion.access_classifier import classify_chunk_access
 from src.ingestion.chunker import chunk_text
 from src.ingestion.drive_reader import GOOGLE_SHEET_MIME, get_drive_service, read_file_as_text
 from src.ingestion.embedder import get_embedding
@@ -209,6 +210,7 @@ def ingest_file(
     if file_id in AGGREGATE_FILE_IDS or agg_type:
         resolved_agg_type = agg_type or ("spreadsheet" if GOOGLE_SHEET_MIME in mime_type else "interview")
         summary = _aggregate_with_gemini(text, resolved_agg_type, gemini_client)
+        access = classify_chunk_access(summary, gemini_client, known_financial=(doc_type == "financial"))
         embedding = get_embedding(summary)
         metadata = {
             "source_type": "google_drive",
@@ -220,8 +222,9 @@ def ingest_file(
             "file_id": file_id,
             "file_title": file_title,
             "chunk_index": 0,
+            "access_level": access["level"],
         }
-        store_chunk(summary, embedding, metadata, collection=collection)
+        store_chunk(summary, embedding, metadata, collection=collection, redacted_text=access["redacted"])
         elapsed = round(time.monotonic() - file_start, 2)
         logger.info("Aggregate stored: 1 summary chunk for '%s' (%.1fs)", file_title, elapsed)
         return {"file_id": file_id, "file_title": file_title, "chunks_stored": 1, "noise_pass_rate": 1.0, "duration_s": elapsed, "aggregate": True}
@@ -255,9 +258,10 @@ def ingest_file(
         logger.warning("All chunks filtered out for '%s'", file_title)
         return {"file_id": file_id, "file_title": file_title, "chunks_stored": 0, "chunks_before_filter": len(chunks), "noise_pass_rate": 0.0, "duration_s": round(time.monotonic() - file_start, 2)}
 
-    # 5. Embed + store
+    # 5. Access-classify + embed + store
     stored = 0
     for i, chunk in enumerate(kept_chunks):
+        access = classify_chunk_access(chunk, gemini_client, known_financial=(doc_type == "financial"))
         embedding = get_embedding(chunk)
         metadata = {
             "source_type": "google_drive",
@@ -269,8 +273,9 @@ def ingest_file(
             "file_id": file_id,
             "file_title": file_title,
             "chunk_index": i,
+            "access_level": access["level"],
         }
-        store_chunk(chunk, embedding, metadata, collection=collection)
+        store_chunk(chunk, embedding, metadata, collection=collection, redacted_text=access["redacted"])
         stored += 1
         if i < len(kept_chunks) - 1:
             time.sleep(0.05)

@@ -33,16 +33,15 @@ _DEMO_DISABLED_MSG = "\n\n---\n*Calendar and email features are not available in
 _SENSITIVE_PHRASES = tuple(cfg_list("sensitive_phrases"))
 
 
-# Financial data guard. A doc_type filter alone is not enough: dollar figures
-# mentioned casually inside ordinary Discord or meeting-note chunks are never
-# tagged financial, so chunk text is scanned too. Chunk filtering applies only
-# in DEMO_MODE (unauthenticated public deployment); the full club deployment
-# keeps financial context and the prompt adds an internal-figures caveat.
-_FINANCIAL_KEYWORDS = (
-    "budget", "expense", "cost", "invoice", "receipt", "bookkeeping",
-    "sponsor amount", "dollars", "payment", "reimbursement",
-)
-_DOLLAR_RE = re.compile(r"\$\s?\d")
+# Financial data guard, layered:
+# 1. Chunks ingested since access tagging carry metadata.access_level, judged
+#    once by an LLM at ingestion (src/ingestion/access_classifier.py). Trusted:
+#    "member" passes even if it contains the word "cost", "exec" is swapped for
+#    its redacted rendition or dropped.
+# 2. Legacy untagged chunks fall back to the blunt keyword/regex scan, because
+#    a doc_type filter alone was live-proven insufficient (casual dollar
+#    figures in untagged Discord chunks).
+from src.financial_signals import DOLLAR_RE as _DOLLAR_RE, has_financial_signals
 
 _FINANCIAL_RESTRICTED_MSG = "Detailed financial records are restricted in this demo. Ask your exec board directly."
 
@@ -55,10 +54,7 @@ _FINANCIAL_QUERY_TERMS = (
 def _is_financial_chunk(chunk: dict) -> bool:
     if chunk.get("metadata", {}).get("doc_type") == "financial":
         return True
-    text_lower = chunk.get("text", "").lower()
-    if _DOLLAR_RE.search(text_lower):
-        return True
-    return any(k in text_lower for k in _FINANCIAL_KEYWORDS)
+    return has_financial_signals(chunk.get("text", ""))
 
 
 def _is_financial_query(query: str) -> bool:
@@ -67,8 +63,10 @@ def _is_financial_query(query: str) -> bool:
 
 
 def _filter_sensitive_chunks(chunks: list[dict], restrict_financial: Optional[bool] = None) -> list[dict]:
-    """Drop chunks that contain sensitive internal political content, and any
-    chunk carrying financial data when the caller's access restricts it."""
+    """Drop chunks that contain sensitive internal political content, and
+    enforce financial access when the caller's tier restricts it: tagged-exec
+    chunks are swapped for their redacted rendition (or dropped), tagged-member
+    chunks pass, untagged legacy chunks fall back to the keyword scan."""
     if restrict_financial is None:
         restrict_financial = _DEMO_MODE
     safe = []
@@ -77,9 +75,19 @@ def _filter_sensitive_chunks(chunks: list[dict], restrict_financial: Optional[bo
         if any(phrase in text_lower for phrase in _SENSITIVE_PHRASES):
             logger.info("Filtered sensitive chunk: %s", c.get("metadata", {}).get("file_title", "unknown"))
             continue
-        if restrict_financial and _is_financial_chunk(c):
-            logger.info("Filtered financial chunk (restricted access): %s", c.get("metadata", {}).get("file_title", "unknown"))
-            continue
+        if restrict_financial:
+            title = c.get("metadata", {}).get("file_title", "unknown")
+            level = c.get("metadata", {}).get("access_level")
+            if level == "exec":
+                if c.get("redacted_text"):
+                    logger.info("Serving redacted rendition (restricted access): %s", title)
+                    safe.append({**c, "text": c["redacted_text"]})
+                else:
+                    logger.info("Filtered exec-tagged chunk (restricted access): %s", title)
+                continue
+            if level is None and _is_financial_chunk(c):
+                logger.info("Filtered untagged financial chunk (keyword backstop): %s", title)
+                continue
         safe.append(c)
     return safe
 
