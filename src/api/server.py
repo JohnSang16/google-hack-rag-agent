@@ -299,6 +299,14 @@ async def admin_stats(access: Access = Depends(get_access)):
 async def startup():
     _apply_demo_seeds()
     logger.info("Demo seeds loaded into cache (%d of %d — PLAN skipped until live run)", len(_response_cache), len(_DEMO_SEEDS))
+    # TTL index: query log rows self-delete after 90 days so the M0 tier
+    # storage cap can never fill up from logging.
+    coll = _get_query_log_collection()
+    if coll is not None:
+        try:
+            await coll.create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+        except Exception as e:
+            logger.warning("query_logs TTL index creation failed: %s", e)
 
 
 @app.post("/cache/clear")

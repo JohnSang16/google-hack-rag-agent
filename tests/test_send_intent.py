@@ -1,46 +1,43 @@
 """
-TDD tests for send-email intent detection.
+Unit tests for explicit send-to-email intent detection.
 
-Pure unit tests — no API calls, no env var requirements.
-Run with: pytest tests/test_send_intent.py -v
+Pure unit tests, no API calls, no env var requirements.
+Rewritten 2026-07-17: the original file tested is_send_email_intent (a
+two-word "send it" detector) which no longer exists; the current function
+is is_send_to_email_intent, which requires an explicit email/recipient
+phrasing before the PLAN email path activates.
 """
 import pytest
 
-from src.agent.tools.send_gmail import is_send_email_intent
+from src.agent.tools.send_gmail import is_send_to_email_intent
 
 
-# --- Should trigger send ---
+# --- Should trigger the send-to-email path ---
 
 @pytest.mark.parametrize("query", [
+    "send this to the sponsors",
+    "email the brief to the exec team",
+    "forward this to club members",
+    "send the plan to everyone",
+    "send an email to the team",
+    "email sponsors the sponsor packet",
     "send the email",
-    "send it",
-    "go ahead and send",
-    "send the draft",
-    "ok send it",
-    "looks good, send the email",
-    "send that email",
-    "send it now",
-    "yes send",
-    "please send the email",
-    "Send the email",
-    "SEND IT",
+    "email this brief",
 ])
 def test_send_intent_detected(query: str):
-    assert is_send_email_intent(query), f"Expected True for: {repr(query)}"
+    assert is_send_to_email_intent(query), f"Expected True for: {repr(query)}"
 
 
-# --- Should NOT trigger send ---
+# --- Should NOT trigger ---
 
 @pytest.mark.parametrize("query", [
     "What were the key logistics challenges at Hacklanta?",
-    "Draft a planning brief for our next hackathon",
     "How has our attendance grown?",
-    "send me the attendance data",        # 'send me' is a request, not a send command
-    "can you send a recap to the team",   # 'send a recap' — could go either way, but safer to exclude
-    "what should I send to sponsors",
-    "I'll send the email later",          # future tense, not a command
+    "what is our sponsorship strategy",
+    "who is on the exec team",
+    "send it",
     "",
     "   ",
 ])
 def test_send_intent_not_detected(query: str):
-    assert not is_send_email_intent(query), f"Expected False for: {repr(query)}"
+    assert not is_send_to_email_intent(query), f"Expected False for: {repr(query)}"
