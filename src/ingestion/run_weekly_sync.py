@@ -31,9 +31,9 @@ from google import genai
 
 from src.org_config import load_org_config
 from src.ingestion.discord_fetcher import DEFAULT_WINDOW_DAYS, fetch_messages_window, list_text_channels
-from src.ingestion.discord_reader import LEGACY_CHUNK_KEY_CEILING, chunks_from_messages
+from src.ingestion.discord_reader import LEGACY_CHUNK_KEY_CEILING, chunks_from_messages, date_chunk_key
 from src.ingestion.drive_reader import get_drive_service
-from src.ingestion.drive_walker import delete_orphaned_chunks, walk_drive_folder
+from src.ingestion.drive_walker import delete_orphaned_chunks, sweep_deleted_files, walk_drive_folder
 from src.ingestion.embedder import get_embedding
 from src.ingestion.noise_filter import is_useful_chunk
 from src.ingestion.pii_filter import strip_pii_regex
@@ -51,6 +51,36 @@ def _gemini_client() -> genai.Client:
     return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
+def _window_floor_key(window_days: int) -> int:
+    """Smallest date_chunk_key inside the fetch window; chunks at or above this
+    key that a run does not re-produce correspond to deleted conversations."""
+    from datetime import datetime, timedelta, timezone
+    start = datetime.now(timezone.utc) - timedelta(days=window_days)
+    return date_chunk_key(start.strftime("%Y-%m-%d"), 0)
+
+
+def _post_webhook_summary(summary: dict) -> None:
+    """One-line run report to a Discord channel webhook, so a failing sync is
+    noticed instead of silently going stale. No-op unless DISCORD_SYNC_WEBHOOK_URL
+    is set."""
+    url = os.environ.get("DISCORD_SYNC_WEBHOOK_URL", "")
+    if not url:
+        return
+    d, dc = summary.get("drive", {}), summary.get("discord", {})
+    errors = d.get("errors", 0) + dc.get("errors", 0)
+    icon = "⚠️" if errors else "✅"
+    content = (
+        f"{icon} Weekly knowledge sync: Drive {d.get('synced', 0)} synced / {d.get('skipped', 0)} unchanged / "
+        f"{d.get('swept', 0)} removed. Discord {dc.get('stored', 0)} chunks stored / {dc.get('hash_skipped', 0)} unchanged / "
+        f"{dc.get('swept', 0)} removed. {errors} errors. {summary.get('duration_s', '?')}s."
+    )
+    try:
+        import httpx
+        httpx.post(url, json={"content": content}, timeout=10)
+    except Exception as e:
+        logger.warning("Sync webhook post failed: %s", e)
+
+
 def sync_drive(dry_run: bool = False) -> dict:
     root = os.environ.get("DRIVE_ROOT_FOLDER_ID") or load_org_config().get("drive_root_folder_id", "")
     if not root:
@@ -62,8 +92,11 @@ def sync_drive(dry_run: bool = False) -> dict:
     state_coll = get_state_collection()
     client = None if dry_run else _gemini_client()
 
-    stats = {"skipped": 0, "synced": 0, "errors": 0, "would_sync": []}
-    for spec in walk_drive_folder(service, root):
+    stats = {"skipped": 0, "synced": 0, "errors": 0, "swept": 0, "would_sync": []}
+    walked = walk_drive_folder(service, root)
+    if not dry_run:
+        stats["swept"] = sweep_deleted_files(collection, state_coll, {s["file_id"] for s in walked})
+    for spec in walked:
         file_id = spec["file_id"]
         state = get_source_state(file_id, state_coll)
         if state and state.get("modified_time") == spec["modified_time"]:
@@ -100,39 +133,51 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
 
     collection = get_collection()
     state_coll = get_state_collection()
-    stats = {"channels": 0, "stored": 0, "hash_skipped": 0, "noise_filtered": 0, "errors": 0, "would_sync": []}
+    stats = {"channels": 0, "stored": 0, "hash_skipped": 0, "noise_filtered": 0, "swept": 0, "errors": 0, "would_sync": []}
+    window_floor = _window_floor_key(window_days)
 
     for channel in list_text_channels(guild_id):
         name = channel["name"]
+        channel_id = channel["id"]
         if _should_skip_channel(name):
             continue
         stats["channels"] += 1
-        source_id = f"discord_{name}"
+        # State keys on the channel ID: stable through renames, unlike the name
+        source_id = f"discord_channel_{channel_id}"
+        display_file_id = f"discord_{name}"
         try:
-            messages = fetch_messages_window(channel["id"], window_days)
-            chunks = list(chunks_from_messages("progsu", name, guild_id, channel["id"], messages))
+            messages = fetch_messages_window(channel_id, window_days)
+            chunks = list(chunks_from_messages("progsu", name, guild_id, channel_id, messages))
             if dry_run:
                 if chunks:
                     stats["would_sync"].append(f"#{name}: {len(chunks)} chunks from {len(messages)} messages")
                 continue
 
-            state = get_source_state(source_id, state_coll) or {}
+            # Fall back to the pre-rename name-keyed state doc so its hashes carry over
+            state = get_source_state(source_id, state_coll) or get_source_state(display_file_id, state_coll) or {}
             hashes: dict = dict(state.get("chunk_hashes", {}))
 
             # One-time purge of pre-sync sequential chunk keys, which would
             # otherwise duplicate date-keyed upserts for the same days
             if not state.get("legacy_purged"):
                 purged = collection.delete_many({
-                    "metadata.file_id": source_id,
+                    "metadata.file_id": display_file_id,
                     "metadata.chunk_index": {"$lt": LEGACY_CHUNK_KEY_CEILING},
                 }).deleted_count
                 if purged:
                     logger.info("Purged %d legacy sequential-key chunks for #%s", purged, name)
 
-            last_message_id = state.get("last_message_id")
+            # If the channel was renamed, re-label existing chunks to the current name
+            collection.update_many(
+                {"metadata.channel_id": channel_id, "metadata.file_id": {"$ne": display_file_id}},
+                {"$set": {"metadata.file_id": display_file_id, "metadata.file_title": f"Discord #{name}"}},
+            )
+
+            produced_keys = []
             for chunk in chunks:
                 text = strip_pii_regex(chunk["text"])
                 key = str(chunk["chunk_index"])
+                produced_keys.append(chunk["chunk_index"])
                 digest = hashlib.sha256(text.encode()).hexdigest()
                 if hashes.get(key) == digest:
                     stats["hash_skipped"] += 1
@@ -141,34 +186,51 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
                     stats["noise_filtered"] += 1
                     hashes[key] = digest  # remember the verdict, skip next run too
                     continue
-                store_chunk(
-                    text=text,
-                    embedding=get_embedding(text),
-                    metadata={
+                doc = {
+                    "text": text,
+                    "embedding": get_embedding(text),
+                    "metadata": {
                         "source_type": "discord",
                         "doc_type": _doc_type_for_channel(name),
                         "semester": _semester_for_date(chunk["date"]),
                         "event_name": next((e for k, e in load_org_config().get("event_keyword_map", {}).items() if k in name.lower()), None),
                         "date": chunk["date"],
                         "team": None,
-                        "file_id": source_id,
+                        "file_id": display_file_id,
                         "file_title": f"Discord #{name}",
+                        "channel_id": channel_id,
                         "chunk_index": chunk["chunk_index"],
                         "source_heading": f"{name}, {chunk['date']}",
                         "discord_url": chunk.get("discord_url"),
                         "messages": chunk.get("messages", []),
                     },
-                    collection=collection,
+                }
+                # Upsert keyed by channel ID + chunk key, rename-proof
+                collection.update_one(
+                    {"metadata.channel_id": channel_id, "metadata.chunk_index": chunk["chunk_index"]},
+                    {"$set": doc},
+                    upsert=True,
                 )
                 hashes[key] = digest
                 stats["stored"] += 1
 
-            if messages:
-                last_message_id = messages[-1]["id"]
+            # Sweep: any stored chunk inside the window this run did NOT
+            # re-produce means its day's messages were deleted; purge it so
+            # deleted conversations stop being retrievable
+            swept = collection.delete_many({
+                "metadata.channel_id": channel_id,
+                "metadata.chunk_index": {"$gte": window_floor, "$nin": produced_keys},
+            }).deleted_count
+            if swept:
+                stats["swept"] += swept
+                logger.info("Swept %d deleted-day chunks from #%s", swept, name)
+                hashes = {k: v for k, v in hashes.items() if int(k) < window_floor or int(k) in produced_keys}
+
             mark_synced(
                 source_id, "discord", state_coll=state_coll,
-                last_message_id=last_message_id,
+                last_message_id=messages[-1]["id"] if messages else state.get("last_message_id"),
                 chunk_hashes=hashes,
+                channel_name=name,
                 legacy_purged=True,
             )
         except Exception as e:
@@ -201,6 +263,7 @@ def main() -> None:
         logger.info("[dry-run] Discord would sync: %s", line)
     if not args.dry_run:
         record_run(summary)
+        _post_webhook_summary(summary)
 
 
 if __name__ == "__main__":

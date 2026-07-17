@@ -20,6 +20,10 @@ _INGESTABLE_MIMES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "text/plain",
 }
+_SPREADSHEET_MIMES = {
+    "application/vnd.google-apps.spreadsheet",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 
 _SKIP_NAME_SUBSTRINGS = ("copy of", "resume", "deprecated")
@@ -70,6 +74,22 @@ def _classify_from_path(name: str, path: str) -> dict:
     return {"doc_type": doc_type, "event_name": event_name, "semester": semester}
 
 
+def spec_for_file(file_meta: dict, path: str, known: dict) -> dict:
+    """Build the ingestion spec for one walked file. Files from the curated
+    lists keep their hand-assigned metadata. Unknown spreadsheets default to
+    the aggregate-summary path: roster-style sheets (sign-ins, attendance)
+    are full of names and emails, and the aggregate path stores only
+    Gemini-summarized stats, never raw rows."""
+    file_id = file_meta["id"]
+    if file_id in known:
+        return dict(known[file_id])
+    spec = {"file_id": file_id, "file_title": file_meta["name"], **_classify_from_path(file_meta["name"], path)}
+    if file_meta["mimeType"] in _SPREADSHEET_MIMES:
+        spec["agg_type"] = "spreadsheet"
+        spec["doc_type"] = "feedback_aggregate"
+    return spec
+
+
 def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
     """Return ingestable file specs for the whole tree under root_folder_id:
     [{file_id, file_title, mime_type, modified_time, doc_type, event_name,
@@ -98,7 +118,7 @@ def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
                     continue
                 if any(s in name.lower() for s in _SKIP_NAME_SUBSTRINGS):
                     continue
-                spec = known.get(f["id"]) or {"file_id": f["id"], "file_title": name, **_classify_from_path(name, path)}
+                spec = spec_for_file(f, path, known)
                 results.append({
                     **spec,
                     "mime_type": f["mimeType"],
@@ -111,6 +131,24 @@ def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
 
     logger.info("Drive walk: %d ingestable files under root", len(results))
     return results
+
+
+def sweep_deleted_files(collection, state_coll, walked_file_ids: set) -> int:
+    """Purge chunks for Drive files that vanished from the walk (deleted,
+    trashed, or moved out of the root). Without this, a deleted doc stays
+    searchable forever."""
+    deleted_chunks = 0
+    gone = state_coll.find({
+        "source_type": "google_drive",
+        "source_id": {"$nin": list(walked_file_ids)},
+    })
+    for state in gone:
+        source_id = state["source_id"]
+        n = collection.delete_many({"metadata.file_id": source_id}).deleted_count
+        state_coll.delete_one({"source_id": source_id})
+        logger.info("Swept deleted Drive source %s (%d chunks purged)", state.get("file_title", source_id), n)
+        deleted_chunks += n
+    return deleted_chunks
 
 
 def delete_orphaned_chunks(collection, file_id: str, new_chunk_count: int, old_chunk_count: Optional[int]) -> int:

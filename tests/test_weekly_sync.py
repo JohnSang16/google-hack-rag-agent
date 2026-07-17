@@ -13,7 +13,13 @@ from src.ingestion.discord_reader import (
     chunks_from_messages,
     date_chunk_key,
 )
-from src.ingestion.drive_walker import _classify_from_path, delete_orphaned_chunks
+from src.ingestion.drive_walker import (
+    _classify_from_path,
+    delete_orphaned_chunks,
+    spec_for_file,
+    sweep_deleted_files,
+)
+from src.ingestion.run_weekly_sync import _window_floor_key
 
 
 # --- Date-based chunk keys ---
@@ -82,6 +88,40 @@ def test_classify_from_path_heuristics():
     assert meta["semester"] == "fall_2026"
     bookkeeping = _classify_from_path("FINANCE: 2026-2027 Bookkeeping", "/Finance")
     assert bookkeeping["doc_type"] == "financial"
+
+
+def test_unknown_spreadsheet_defaults_to_aggregate_path():
+    sheet = {"id": "new1", "name": "Fall 2026 Sign-ins", "mimeType": "application/vnd.google-apps.spreadsheet"}
+    spec = spec_for_file(sheet, "/Fall 2026", known={})
+    assert spec["agg_type"] == "spreadsheet"
+    assert spec["doc_type"] == "feedback_aggregate"
+
+
+def test_known_spreadsheet_keeps_curated_spec():
+    sheet = {"id": "k1", "name": "whatever", "mimeType": "application/vnd.google-apps.spreadsheet"}
+    known = {"k1": {"file_id": "k1", "file_title": "Curated", "doc_type": "growth"}}
+    assert spec_for_file(sheet, "/", known)["doc_type"] == "growth"
+
+
+def test_unknown_doc_is_not_aggregated():
+    doc = {"id": "d1", "name": "Meeting Notes", "mimeType": "application/vnd.google-apps.document"}
+    assert "agg_type" not in spec_for_file(doc, "/", known={})
+
+
+def test_sweep_deleted_files_purges_gone_sources():
+    coll = MagicMock()
+    coll.delete_many.return_value.deleted_count = 4
+    state = MagicMock()
+    state.find.return_value = [{"source_id": "gone-file", "file_title": "Old Doc"}]
+    assert sweep_deleted_files(coll, state, walked_file_ids={"still-here"}) == 4
+    coll.delete_many.assert_called_once_with({"metadata.file_id": "gone-file"})
+    state.delete_one.assert_called_once_with({"source_id": "gone-file"})
+
+
+def test_window_floor_key_is_a_recent_date_key():
+    floor = _window_floor_key(14)
+    assert floor > LEGACY_CHUNK_KEY_CEILING
+    assert floor % 1000 == 0  # subchunk 0 of the window start date
 
 
 def test_delete_orphaned_chunks_only_on_shrink():
