@@ -37,16 +37,66 @@ _SENSITIVE_PHRASES = (
 )
 
 
+# Financial data guard. A doc_type filter alone is not enough: dollar figures
+# mentioned casually inside ordinary Discord or meeting-note chunks are never
+# tagged financial, so chunk text is scanned too. Chunk filtering applies only
+# in DEMO_MODE (unauthenticated public deployment); the full club deployment
+# keeps financial context and the prompt adds an internal-figures caveat.
+_FINANCIAL_KEYWORDS = (
+    "budget", "expense", "cost", "invoice", "receipt", "bookkeeping",
+    "sponsor amount", "dollars", "payment", "reimbursement",
+)
+_DOLLAR_RE = re.compile(r"\$\s?\d")
+
+_FINANCIAL_RESTRICTED_MSG = "Detailed financial records are restricted in this demo. Ask your exec board directly."
+
+_FINANCIAL_QUERY_TERMS = (
+    "budget", "expense", "cost", "invoice", "receipt", "bookkeeping",
+    "revenue", "spent", "spend", "paid", "money", "dollar",
+)
+
+
+def _is_financial_chunk(chunk: dict) -> bool:
+    if chunk.get("metadata", {}).get("doc_type") == "financial":
+        return True
+    text_lower = chunk.get("text", "").lower()
+    if _DOLLAR_RE.search(text_lower):
+        return True
+    return any(k in text_lower for k in _FINANCIAL_KEYWORDS)
+
+
+def _is_financial_query(query: str) -> bool:
+    q = query.lower()
+    return bool(_DOLLAR_RE.search(q)) or any(t in q for t in _FINANCIAL_QUERY_TERMS)
+
+
 def _filter_sensitive_chunks(chunks: list[dict]) -> list[dict]:
-    """Drop chunks that contain sensitive internal political content."""
+    """Drop chunks that contain sensitive internal political content,
+    and in DEMO_MODE any chunk carrying financial data."""
     safe = []
     for c in chunks:
         text_lower = c.get("text", "").lower()
         if any(phrase in text_lower for phrase in _SENSITIVE_PHRASES):
             logger.info("Filtered sensitive chunk: %s", c.get("metadata", {}).get("file_title", "unknown"))
             continue
+        if _DEMO_MODE and _is_financial_chunk(c):
+            logger.info("Filtered financial chunk (demo mode): %s", c.get("metadata", {}).get("file_title", "unknown"))
+            continue
         safe.append(c)
     return safe
+
+
+if _DEMO_MODE:
+    _FINANCIAL_RULE = (
+        "- **Never output specific dollar amounts, budgets, sponsorship totals, or any financial figures**, "
+        "even if present in retrieved context. If asked for financial details, say detailed financial records "
+        "are restricted and to ask the exec board directly."
+    )
+else:
+    _FINANCIAL_RULE = (
+        "- Financial figures from context are internal. When outputting specific dollar amounts, "
+        "note that they are internal figures not for external sharing."
+    )
 
 _ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
 
@@ -65,6 +115,7 @@ Response rules. Apply to every answer:
 - The first Hacklanta event (Spring 2026) is Hacklanta 1. Any future hackathon being planned is Hacklanta II. Use these names consistently.
 - **HARD FACT: Hacklanta 1 is progsu's first and only hackathon ever. There are no prior hackathons. No previous Hacklanta events exist. Never write phrases like "historically", "prior hackathons", "past hackathons", "previous events have drawn", or any variation implying earlier hackathons occurred.**
 - **Never invent numbers, statistics, or attendance figures.** Only use numbers that appear verbatim in the retrieved context. Do not estimate, approximate, extrapolate, or draw on general knowledge. If a specific number is not in the retrieved context, omit it entirely or say the data is not available.
+{financial_rule}
 
 Mode-specific output:
 - RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved. Make the pain point feel real before explaining how it was addressed.
@@ -120,6 +171,7 @@ Response rules. Apply to every answer:
 - The first Hacklanta event (Spring 2026) is Hacklanta 1. Any future hackathon is Hacklanta II.
 - **HARD FACT: Hacklanta 1 is progsu's first and only hackathon ever. No prior hackathons exist. Never write "historically", "prior hackathons", "past hackathons", or any phrase implying earlier hackathons.**
 - **Never invent numbers or attendance figures.** Only use numbers verbatim from the retrieved context.
+{financial_rule}
 
 Mode-specific output:
 - RECALL: Be specific and concrete. Make challenges feel real before explaining how they were addressed.
@@ -488,6 +540,11 @@ async def run(
             answer = "Try asking: \"What were the key logistics challenges at Hacklanta?\", \"How has our attendance grown?\", or \"Draft a planning brief for our next hackathon.\""
         return {"mode": "CHAT", "answer": answer, "citations": [], "created_doc_url": None}
 
+    # Financial queries get a canned response in the public demo; no retrieval spend
+    if _DEMO_MODE and _is_financial_query(query):
+        logger.info("DEMO_MODE: financial query blocked with canned response")
+        return {"mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None}
+
     # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(retrieval_query)
@@ -526,7 +583,8 @@ async def run(
     if chunks:
         context_block = format_context_for_prompt(chunks)
         prompt = _ANSWER_PROMPT.format(
-            mode=mode, query=query, context=context_block, history_section=history_section
+            mode=mode, query=query, context=context_block, history_section=history_section,
+            financial_rule=_FINANCIAL_RULE,
         )
     else:
         prompt = _NO_CONTEXT_PROMPT.format(query=query)
@@ -682,6 +740,14 @@ async def run_stream(
         yield {"type": "done", "mode": "CHAT", "answer": full, "citations": [], "created_doc_url": None, "summary": None}
         return
 
+    # Financial queries get a canned response in the public demo; no retrieval spend
+    if _DEMO_MODE and _is_financial_query(query):
+        logger.info("DEMO_MODE: financial query blocked with canned response")
+        yield {"type": "mode", "mode": "RECALL"}
+        yield {"type": "token", "content": _FINANCIAL_RESTRICTED_MSG}
+        yield {"type": "done", "mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None, "summary": None}
+        return
+
     # Parallel: classify mode + retrieve
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(retrieval_query)
@@ -720,7 +786,8 @@ async def run_stream(
     if chunks:
         context_block = format_context_for_prompt(chunks)
         prompt = _STREAM_ANSWER_PROMPT.format(
-            mode=mode, query=query, context=context_block, history_section=history_section
+            mode=mode, query=query, context=context_block, history_section=history_section,
+            financial_rule=_FINANCIAL_RULE,
         )
     else:
         prompt = _STREAM_NO_CONTEXT_PROMPT.format(query=query)
