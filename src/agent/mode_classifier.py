@@ -30,24 +30,6 @@ _CHAT_RE = re.compile('|'.join(_CHAT_PATTERNS), re.IGNORECASE)
 def _is_chat(query: str) -> bool:
     return bool(_CHAT_RE.search(query))
 
-_PROMPT = """Classify this query into exactly one of four modes:
-
-CHAT: The user is making small talk, asking what the system can do, requesting example questions, saying thanks, or asking something not about org history.
-  Examples: "hello", "what can you do?", "give me example questions", "thanks", "what are the 3 prompts?", "give me the other prompts to try", "who are you?"
-
-RECALL: The user wants to know what happened, what was decided, or what exists in the org's history.
-  Examples: "What were the logistics for Hacklanta?", "What sponsors did we have?", "What was decided in the last exec meeting?"
-
-ANALYZE: The user wants trends, comparisons, or synthesis across multiple events/time periods.
-  Examples: "How has our attendance grown?", "What events drove the most engagement?", "Compare Fall 2025 to Spring 2026"
-
-PLAN: The user wants to create something new, draft a document, or plan a future event. This should produce a Google Doc.
-  Examples: "Draft a planning brief for...", "Help me plan...", "Create a template for...", "Write a proposal for..."
-
-Query: {query}
-
-Respond with exactly one word: CHAT, RECALL, ANALYZE, or PLAN"""
-
 VALID_MODES = {"CHAT", "RECALL", "ANALYZE", "PLAN"}
 
 
@@ -60,24 +42,73 @@ def _get_client() -> genai.Client:
 
 def classify_mode(query: str, client: genai.Client = None) -> str:
     """Classify a query as CHAT, RECALL, ANALYZE, or PLAN. Defaults to RECALL on failure."""
+    return classify_intent(query, client)["mode"]
+
+
+# One structured call replaces the six independent keyword/regex mechanisms
+# that used to decide mode and action intent and disagreed at the edges
+# (worst case: the word "sponsor" alone used to auto-send a real email).
+_INTENT_PROMPT = """Classify this query about a student tech org's knowledge base.
+
+Fields:
+- mode: exactly one of
+  CHAT: small talk, questions about what the system can do, example question requests, thanks.
+  RECALL: what happened, what was decided, what exists in the org's history.
+  ANALYZE: trends, comparisons, synthesis across events or time periods.
+  PLAN: create something new, draft a document, plan a future event (produces a Google Doc).
+- wants_calendar: true ONLY if the user explicitly asks to schedule something or add it to a calendar.
+- wants_email: true ONLY if the user explicitly asks to email or send the result to someone. Merely mentioning sponsors, emails, or outreach as a TOPIC is not email intent ("what is our sponsor strategy" is false; "email the brief to our sponsors" is true).
+- send_now: true ONLY if the user explicitly says to send immediately rather than draft or prepare.
+
+Query: {query}"""
+
+_INTENT_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "mode": {"type": "STRING", "enum": ["CHAT", "RECALL", "ANALYZE", "PLAN"]},
+        "wants_calendar": {"type": "BOOLEAN"},
+        "wants_email": {"type": "BOOLEAN"},
+        "send_now": {"type": "BOOLEAN"},
+    },
+    "required": ["mode", "wants_calendar", "wants_email", "send_now"],
+}
+
+_FALLBACK_INTENT = {"mode": "RECALL", "wants_calendar": False, "wants_email": False, "send_now": False}
+
+
+def classify_intent(query: str, client: genai.Client = None) -> dict:
+    """One structured Gemini call returning {mode, wants_calendar, wants_email, send_now}.
+
+    Failure degrades to RECALL with all action flags false, so a classifier
+    outage can never trigger an action, only a plain retrieval answer.
+    """
     if _is_chat(query):
         logger.info("Classified query as CHAT (pattern match): %s...", query[:60])
-        return "CHAT"
+        return {**_FALLBACK_INTENT, "mode": "CHAT"}
 
     if client is None:
         client = _get_client()
 
-    prompt = _PROMPT.format(query=query)
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
+            model="gemini-2.5-flash",
+            contents=_INTENT_PROMPT.format(query=query),
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=_INTENT_SCHEMA,
+                temperature=0.0,
+            ),
         )
-        mode = response.text.strip().upper()
-        if mode not in VALID_MODES:
-            logger.warning("Unexpected mode '%s', defaulting to RECALL", mode)
-            return "RECALL"
-        logger.info("Classified query as %s: %s...", mode, query[:60])
-        return mode
+        import json
+        intent = json.loads(response.text)
+        if intent.get("mode") not in VALID_MODES:
+            logger.warning("Unexpected mode '%s', defaulting to RECALL", intent.get("mode"))
+            return dict(_FALLBACK_INTENT)
+        result = {**_FALLBACK_INTENT, **{k: intent[k] for k in _FALLBACK_INTENT if k in intent}}
+        logger.info("Intent: %s (cal=%s email=%s now=%s): %s...",
+                    result["mode"], result["wants_calendar"], result["wants_email"],
+                    result["send_now"], query[:60])
+        return result
     except Exception as e:
-        logger.error("Mode classification failed, defaulting to RECALL: %s", e)
-        return "RECALL"
+        logger.error("Intent classification failed, defaulting to RECALL: %s", e)
+        return dict(_FALLBACK_INTENT)

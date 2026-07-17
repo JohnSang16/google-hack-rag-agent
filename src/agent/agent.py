@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from src.access import Access, legacy_default
 from src.org_config import cfg_dict, cfg_list
-from src.agent.mode_classifier import classify_mode, _is_chat as _is_chat_query
+from src.agent.mode_classifier import classify_intent, _is_chat as _is_chat_query
 from src.agent.tools.retrieve import retrieve_context, format_context_for_prompt
 from src.agent.tools.create_doc import create_google_doc
 from src.agent.tools.create_calendar_event import create_calendar_event
@@ -99,63 +99,6 @@ _PLAN_GATED_MSG = (
     "Ask an exec board member to run this, or try a RECALL or ANALYZE question instead."
 )
 
-_ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
-
-Mode: {mode}
-
-Response rules. Apply to every answer:
-- Open with 1-2 sentences that directly answer the question. No preamble, no "great question."
-- Then unpack the detail using bullets or short paragraphs. Summary before depth, always.
-- Keep language plain and conversational. A new member should be able to follow it.
-- Never pad. If 3 bullets cover it, don't write 3 paragraphs.
-- Consolidate closely related points into one bullet. Do not split the same underlying issue into multiple bullets just because the details differ slightly. For example, parking location and parking navigation are one problem, not two.
-- Do not let one person's name or role dominate a response. Represent the collective team picture.
-- When referencing feedback, assignments, or decisions found in meeting notes, attribute them to the team or role (e.g., "the operations team flagged", "per the tech meeting") rather than by first names of meeting attendees. First names in meeting notes are usually attendees, not decision-makers. Do not surface them as the source of authority.
-- **Never name external individuals (people outside progsu leadership) by name, especially in contexts involving conflict, resistance, control disputes, or institutional politics.** Refer to them as "a university stakeholder", "an external party", or "university administration" instead. This applies to any friction with GSU staff, administrators, or affiliated org leaders.
-- **Never output phone numbers, email addresses, or any raw personal contact information**, even if present in retrieved context. If asked directly, say the information is not available for privacy reasons.
-- The first Hacklanta event (Spring 2026) is Hacklanta 1. Any future hackathon being planned is Hacklanta II. Use these names consistently.
-- **HARD FACT: Hacklanta 1 is progsu's first and only hackathon ever. There are no prior hackathons. No previous Hacklanta events exist. Never write phrases like "historically", "prior hackathons", "past hackathons", "previous events have drawn", or any variation implying earlier hackathons occurred.**
-- **Never invent numbers, statistics, or attendance figures.** Only use numbers that appear verbatim in the retrieved context. Do not estimate, approximate, extrapolate, or draw on general knowledge. If a specific number is not in the retrieved context, omit it entirely or say the data is not available.
-{financial_rule}
-
-Mode-specific output:
-- RECALL: Be specific and concrete. What happened, what was decided, what the outcome was. For questions about challenges or problems, describe the actual difficulty and stress involved. Make the pain point feel real before explaining how it was addressed.
-- ANALYZE: Lead with the pattern or trend in 1-2 sentences. Follow with a markdown table with exactly 2 columns: Event or Period, and the key number. One line per cell, no extra columns, no notes column. Close with a 2-3 sentence narrative on what it means for the org.
-- PLAN: Write a full structured document with ## section headings. Every section must be actionable, not theoretical. Ground every recommendation in what actually worked or failed in Hacklanta 1 or other real org history. Make it clear this plan is built on real experience. Also write a 2-3 sentence `summary` field describing what the brief covers and what the key focus areas are. This is shown in the chat UI before the user opens the full doc. Do NOT include draft emails, email templates, or outreach copy in the document body.
-
-{history_section}Retrieved context:
-{context}
-
-User query: {query}
-
-Output ONLY valid JSON with this exact structure (no markdown code fences):
-{{
-  "answer": "<your complete response in markdown>",
-  "summary": "<2-3 sentence overview of the brief for chat display. Only present when mode is PLAN, otherwise omit>",
-  "citations": [
-    {{
-      "title": "<file_title from source>",
-      "date": "<date or null>",
-      "file_id": "<file_id from source metadata>",
-      "relevance_score": <number 0-10>
-    }}
-  ]
-}}
-
-Use only facts present in the retrieved context. Every specific claim must be attributable to a source. Include only sources you actually drew from."""
-
-_NO_CONTEXT_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You know the org's full history: events, meetings, decisions, people, and finances.
-
-Nothing relevant came up in the knowledge base for this query.
-
-User query: {query}
-
-Respond with exactly this JSON:
-{{
-  "answer": "I don't have anything on that in the org's records. Try asking about a specific event, meeting, or decision. I know Hacklanta, the Claude Workshop, our attendance growth, exec meetings, sponsorship strategy, and more.",
-  "citations": []
-}}"""
-
 _STREAM_ANSWER_PROMPT = """You are the institutional memory of progsu, a student tech org at Georgia State University. You have deep knowledge of every event, meeting, decision, financial detail, and team dynamic in the org's history. You think and speak like a senior member who has been here since day one, knowledgeable, direct, and genuinely invested in the org's success.
 
 Mode: {mode}
@@ -222,48 +165,6 @@ def _get_client() -> genai.Client:
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not set")
     return genai.Client(api_key=api_key)
-
-
-def _parse_response(raw: str) -> tuple:
-    """Parse Gemini JSON response. Returns (answer, citations)."""
-    text = raw.strip()
-    # Strip markdown fences
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-    text = text.strip()
-
-    # First try clean parse
-    try:
-        data = json.loads(text)
-        return data.get("answer", raw), data.get("citations", []), data.get("summary")
-    except json.JSONDecodeError:
-        pass
-
-    # Truncated JSON — extract "answer" value with regex and try to salvage citations
-    try:
-        answer_match = re.search(r'"answer"\s*:\s*"(.*?)(?:"\s*,\s*"citations"|"\s*})', text, re.DOTALL)
-        if answer_match:
-            answer = answer_match.group(1).encode().decode("unicode_escape", errors="ignore")
-        else:
-            # Last resort: everything after "answer": "
-            answer_match2 = re.search(r'"answer"\s*:\s*"(.+)', text, re.DOTALL)
-            answer = answer_match2.group(1).rstrip('"}').strip() if answer_match2 else raw
-
-        citations_match = re.search(r'"citations"\s*:\s*(\[.*?\])', text, re.DOTALL)
-        citations: list[dict] = []
-        if citations_match:
-            try:
-                citations = json.loads(citations_match.group(1))
-            except json.JSONDecodeError:
-                pass
-
-        logger.warning("Recovered from malformed JSON: answer=%d chars, citations=%d", len(answer), len(citations))
-        return answer, citations, None
-    except Exception as e:
-        logger.warning("Failed to parse JSON response, using raw text: %s", e)
-        return raw, [], None
 
 
 def _enrich_citations(citations: list[dict], chunks: list[dict]) -> list[dict]:
@@ -502,140 +403,22 @@ async def run(
     access: Optional[Access] = None,
 ) -> dict:
     """
-    Full agent pipeline: classify → retrieve → generate → (create doc if PLAN).
-    Returns dict with mode, answer, citations, created_doc_url.
-    access carries the caller's tier capabilities; None falls back to the
-    deployment-wide DEMO_MODE behavior.
+    Non-streaming pipeline: a thin consumer of run_stream, so there is exactly
+    one pipeline implementation. Collects the streamed events and returns the
+    final result dict (mode, answer, summary, citations, created_doc_url, and
+    any PLAN artifact fields from the done event).
     """
-    if client is None:
-        client = _get_client()
-    if access is None:
-        access = legacy_default()
+    result: dict = {"mode": "RECALL", "answer": "", "summary": None, "citations": [], "created_doc_url": None}
+    tokens: list[str] = []
+    async for event in run_stream(query, filters=filters, history=history, client=client, access=access):
+        if event.get("type") == "token":
+            tokens.append(event.get("content", ""))
+        elif event.get("type") == "done":
+            result = {k: v for k, v in event.items() if k != "type"}
+    if not result.get("answer"):
+        result["answer"] = "".join(tokens)
+    return result
 
-    if not _is_meaningful_query(query):
-        return {
-            "mode": "RECALL",
-            "answer": _CLARIFICATION_ANSWER,
-            "citations": [],
-            "created_doc_url": None,
-        }
-
-    # 1. Fast regex CHAT pre-check (no API call) — avoids wasting retrieval time
-    if _is_chat_query(query):
-        logger.info("CHAT mode (regex pre-check): %s...", query[:60])
-        try:
-            response = await asyncio.to_thread(
-                client.models.generate_content,
-                model="gemini-2.5-flash",
-                contents=_CHAT_PROMPT.format(query=query),
-                config=genai.types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=512,
-                ),
-            )
-            answer = response.text.strip()
-        except Exception as e:
-            logger.error("CHAT response failed: %s", e)
-            answer = "Try asking: \"What were the key logistics challenges at Hacklanta?\", \"How has our attendance grown?\", or \"Draft a planning brief for our next hackathon.\""
-        return {"mode": "CHAT", "answer": answer, "citations": [], "created_doc_url": None}
-
-    # Financial queries get a canned response for restricted tiers; no retrieval spend
-    if not access.financial_access and _is_financial_query(query):
-        logger.info("Financial query blocked with canned response (tier: %s)", access.tier)
-        return {"mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None}
-
-    # 2. Restore parallel execution: classify mode + rewrite + retrieve concurrently
-    retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
-    top_k = _estimate_top_k(retrieval_query)
-    retrieval_filters = _build_retrieval_filters(retrieval_query, filters)
-    mode, chunks = await asyncio.gather(
-        asyncio.to_thread(classify_mode, retrieval_query, client),
-        retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
-    )
-    logger.info("Agent mode: %s | retrieval_filters: %s", mode, retrieval_filters)
-
-    # Fallback: if event-filtered retrieval returned nothing, retry without filter
-    if not chunks and retrieval_filters:
-        logger.info("Event-filtered retrieval returned 0 chunks; retrying without filter")
-        chunks = await retrieve_context(retrieval_query, filters=None, top_k=top_k, gemini_client=client)
-
-    # Handle rare case where Gemini classifies as CHAT despite passing regex
-    if mode == "CHAT":
-        return {"mode": "CHAT", "answer": "Ask me about Hacklanta, our attendance growth, or have me draft a planning doc.", "citations": [], "created_doc_url": None}
-
-    # PLAN creates real Drive docs and calendar events; exec tier and up only
-    if mode == "PLAN" and not access.can_plan:
-        logger.info("PLAN mode gated (tier: %s)", access.tier)
-        return {"mode": "PLAN", "answer": _PLAN_GATED_MSG, "citations": [], "created_doc_url": None}
-
-    # Confidence gate: if best chunk score is too low, don't hallucinate
-    _LOW_CONFIDENCE_THRESHOLD = 5
-    if chunks:
-        best_score = max(c.get("relevance_score", 0) for c in chunks)
-        if best_score < _LOW_CONFIDENCE_THRESHOLD:
-            logger.info("Low confidence retrieval (best score %s), returning humble response", best_score)
-            return {
-                "mode": mode,
-                "answer": "I don't have enough in the org's records to answer that confidently. Try rephrasing, or ask about a specific event, meeting, or decision I might know about.",
-                "citations": [],
-                "created_doc_url": None,
-            }
-
-    # 4. Generate answer
-    chunks = _filter_sensitive_chunks(chunks, restrict_financial=not access.financial_access)
-    history_section = _build_history_section(history or [])
-    if chunks:
-        context_block = format_context_for_prompt(chunks)
-        prompt = _ANSWER_PROMPT.format(
-            mode=mode, query=query, context=context_block, history_section=history_section,
-            financial_rule=_FINANCIAL_RULE_INTERNAL if access.financial_access else _FINANCIAL_RULE_RESTRICTED,
-        )
-    else:
-        prompt = _NO_CONTEXT_PROMPT.format(query=query)
-
-    try:
-        max_tokens = 16384 if mode == "PLAN" else 8192
-        thinking_budget = 2048 if mode == "PLAN" else 1024
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,
-                max_output_tokens=max_tokens,
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=thinking_budget),
-            ),
-        )
-        answer, citations, summary = _parse_response(response.text)
-    except Exception as e:
-        logger.error("Answer generation failed: %s", e)
-        answer = "An error occurred while generating a response."
-        citations = []
-        summary = None
-
-    citations = _enrich_citations(citations, chunks)
-
-    # 5. Grounding check: only on PLAN mode (too expensive to run on every query)
-    if mode == "PLAN" and chunks and answer and "error" not in answer.lower():
-        answer = await _check_grounding(query, answer, format_context_for_prompt(chunks), client)
-
-    # 6. PLAN mode: create Google Doc
-    created_doc_url = None
-    if mode == "PLAN" and answer and "error" not in answer.lower():
-        try:
-            created_doc_url = await asyncio.to_thread(create_google_doc, query, answer, citations)
-            logger.info("Google Doc created: %s", created_doc_url)
-        except Exception as e:
-            logger.error("Google Doc creation failed: %s", e)
-
-    return {
-        "mode": mode,
-        "answer": answer,
-        "summary": summary,
-        "citations": citations,
-        "created_doc_url": created_doc_url,
-    }
 
 
 _LOW_CONFIDENCE_THRESHOLD = 5
@@ -757,14 +540,15 @@ async def run_stream(
         yield {"type": "done", "mode": "RECALL", "answer": _FINANCIAL_RESTRICTED_MSG, "citations": [], "created_doc_url": None, "summary": None}
         return
 
-    # Parallel: classify mode + retrieve
+    # Parallel: classify intent + retrieve
     retrieval_query = await _rewrite_query_for_retrieval(query, history or [], client)
     top_k = _estimate_top_k(retrieval_query)
     retrieval_filters = _build_retrieval_filters(retrieval_query, filters)
-    mode, chunks = await asyncio.gather(
-        asyncio.to_thread(classify_mode, retrieval_query, client),
+    intent, chunks = await asyncio.gather(
+        asyncio.to_thread(classify_intent, retrieval_query, client),
         retrieve_context(retrieval_query, filters=retrieval_filters, top_k=top_k, gemini_client=client),
     )
+    mode = intent["mode"]
 
     # Fallback: if event-filtered retrieval returned nothing, retry without filter
     if not chunks and retrieval_filters:
@@ -835,6 +619,15 @@ async def run_stream(
     # Normalize any absurdly long table separators Gemini may have generated
     full_answer = _normalize_table_separators(full_answer)
 
+    # Grounding check (PLAN only, too expensive per-query). Tokens already
+    # streamed, so a failed check appends the disclaimer as one final token
+    # event; the done event carries the corrected full answer.
+    if mode == "PLAN" and chunks and full_answer and "error" not in full_answer.lower():
+        checked = await _check_grounding(query, full_answer, format_context_for_prompt(chunks), client)
+        if checked != full_answer:
+            yield {"type": "token", "content": _GROUNDING_DISCLAIMER}
+            full_answer = checked
+
     # Build citations from retrieved chunks directly
     raw = [
         {
@@ -860,9 +653,10 @@ async def run_stream(
         paras = [p.strip() for p in full_answer.split("\n\n") if p.strip() and not p.startswith("#")]
         summary = paras[0][:200] if paras else full_answer[:200]
 
-        q_lower = query.lower()
-        wants_calendar = any(kw in q_lower for kw in ["calendar", "schedule", "add to"])
-        wants_email = any(kw in q_lower for kw in ["email", "send", "sponsor"])
+        # Action intent comes from the structured classifier, never keyword
+        # sniffing (the word "sponsor" alone used to auto-send a real email)
+        wants_calendar = intent["wants_calendar"]
+        wants_email = intent["wants_email"]
 
         try:
             created_doc_url = await asyncio.to_thread(create_google_doc, query, full_answer, citations)
@@ -912,10 +706,12 @@ async def run_stream(
                     draft_result = await asyncio.to_thread(create_gmail_draft, subject=email_subject, body=email_body)
                     draft_id = draft_result.get("draft_id")
                     gmail_draft_url = draft_result.get("draft_url")
-                    await asyncio.to_thread(send_gmail_draft, draft_id)
-                    logger.info("Auto-sent email to sponsors: %s", email_subject)
+                    # Draft only, never auto-send. Sending requires an explicit
+                    # confirmation turn ("send it") through the send-intent path,
+                    # which is additionally gated to gmail-send capability.
+                    logger.info("Gmail draft created (not sent): %s", email_subject)
                 except Exception as e:
-                    logger.error("Auto-email failed: %s", e)
+                    logger.error("Email draft failed: %s", e)
 
         if (wants_calendar and not access.can_calendar) or (wants_email and created_doc_url and not access.can_gmail_send):
             full_answer += _DEMO_DISABLED_MSG
