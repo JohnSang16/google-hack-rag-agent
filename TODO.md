@@ -4,7 +4,19 @@ Claude Code: Update this file at the end of every session. Mark completed items,
 
 ---
 
-## Current Status: SUBMITTED ✓ — Devpost submitted June 11, 2026. Judging ends July 13, 2026. Backlog items are post-judging work.
+## Current Status: POST-JUDGING HARDENING SHIPPED (2026-07-17)
+
+Devpost submitted June 11, 2026. Judging ended July 13, 2026. The post-judging backlog below this line is historical; the roadmap sections it fed into are done on branch `roadmap-fixes`:
+
+- Correctness: reranker failure below the confidence gate, billing cap ordering
+- Security: content-level financial guard, /cache/clear auth, generic error responses, trusted x-forwarded-for
+- Discord OAuth access tiers (anonymous/member/exec/admin) with capability gating
+- Ingestion-time access classification with redacted renditions
+- Unified run/run_stream pipeline, structured intent classifier, auto-send bug closed
+- Weekly Drive+Discord refresh (delta sync, date-keyed chunks, deletion sweeps, webhook summary)
+- Org config externalized to private org_config.json; CI; query logging with TTL
+
+Remaining work and priorities live in the vault: `progsu/projects/rag-agent-roadmap.md`. Do not extend this file with new backlog; update the vault roadmap instead.
 
 ---
 

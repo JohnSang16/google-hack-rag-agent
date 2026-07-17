@@ -1,8 +1,10 @@
 # progsu Intelligence Agent
 
+[![CI](https://github.com/JohnSang16/progsu-intelligence-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnSang16/progsu-intelligence-agent/actions/workflows/ci.yml)
+
 Every student org leader loses institutional knowledge when people graduate. This agent makes a year of org history instantly queryable and actionable.
 
-Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com), MongoDB track.
+Built for the [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com), MongoDB track, then hardened into a production system: role-based access control via Discord OAuth, ingestion-time data governance with redaction, and a fully automated weekly knowledge refresh.
 
 **Live demo:** https://frontend-coral-mu-47.vercel.app
 
@@ -31,6 +33,22 @@ Every RECALL and ANALYZE answer includes citations: source name, date, and a dir
 
 ---
 
+## Beyond the Hackathon
+
+The hackathon build proved the idea. The work since turned demo code into a system safe to open to a whole organization:
+
+**Role-based access via Discord OAuth.** The org already lives in Discord, so Discord is the user database. Members log in with Discord (identify scope only), the backend maps their server roles to a tier, and every capability is gated per request: `anonymous` gets the public demo, `member` gets cited search, `exec` adds PLAN artifacts and financial data, `admin` adds email send and admin endpoints. Sessions are stateless HMAC-signed tokens; tiers re-resolve through a cached role lookup, so removing someone's role revokes their access with zero admin work. With no Discord credentials configured, everything falls back to the original single-switch demo behavior.
+
+**Ingestion-time data governance.** Every chunk is access-classified when it enters the system, not when it leaves. A cheap keyword trigger routes suspicious chunks to a Gemini judge that distinguishes real financial data ("sponsorship came in at $20,000") from figurative language ("the venue cost us a lot of stress"), tags the verdict as metadata, and produces a redacted rendition with figures masked. Restricted tiers get the redacted text instead of losing the whole chunk. Classifier failure over-restricts rather than leaks. Newly discovered spreadsheets default to an aggregate-summary path so roster data is never stored raw.
+
+**Automated weekly knowledge refresh.** A scheduled job replaces all manual ingestion. Drive: a recursive walk re-ingests only files whose modifiedTime changed, sweeps chunks for deleted files, and cleans orphaned chunks when documents shrink. Discord: the bot fetches a rolling 14-day window per channel over REST (no export tool), and chunks are keyed by their own date, so overlapping windows re-upsert idempotently and edits to old messages self-correct. Text hashing skips all Gemini spend on unchanged content. Per-source sync state means failures retry automatically next run, and an optional webhook posts run summaries to a Discord channel.
+
+**One pipeline, structured intent.** The streaming and non-streaming paths are a single implementation (the non-streaming API is a thin consumer of the stream), which revived the production grounding check and eliminated an entire class of drift bugs. Mode and action detection is one structured Gemini call returning `{mode, wants_calendar, wants_email, send_now}` with a schema-enforced response, replacing six keyword heuristics. Emails are only ever drafted by PLAN mode; sending requires an explicit confirmation turn and admin capability.
+
+**Observability and CI.** Every request logs mode, latency, confidence, tier, and an IP hash to a `query_logs` collection with a 90-day TTL. GitHub Actions runs the unit suite (79 tests) on every push. Org-specific configuration (authoritative sources, sensitive phrases, demo seeds) lives in a private `org_config.json`, making the public codebase a generic org-knowledge engine.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -50,20 +68,23 @@ Every RECALL and ANALYZE answer includes citations: source name, date, and a dir
 ## Pipeline
 
 ```
-User query
-  → mode classifier (Gemini 2.5 Flash)
-  → if CHAT: answer directly, no retrieval
-  → metadata pre-filter (date, event, team, doc_type)
-  → MongoDB Atlas vector search (top-k=10)
-  → reranker (Gemini scores all 10 chunks in one call, keeps top-3)
-  → Gemini agent streams response with citations [source_name, date, drive_link]
-  → if PLAN mode:
+User query (+ bearer token -> tier resolution via cached Discord role lookup)
+  -> structured intent classifier (one Gemini call: mode + action flags)
+  -> if CHAT: answer directly, no retrieval
+  -> metadata pre-filter (date, event, team, doc_type)
+  -> MongoDB Atlas vector search (top-k=10)
+  -> reranker (Gemini scores all chunks in one batched call, keeps top-3)
+  -> confidence gate (best score < 5 returns "not enough info", never guesses)
+  -> tier gate (financial chunks served redacted or dropped for restricted tiers)
+  -> Gemini agent streams response with citations [source_name, date, drive_link]
+  -> grounding check on PLAN answers (unsupported claims get a disclaimer)
+  -> if PLAN mode (exec tier and up):
       create_google_doc() via Drive + Docs API
       create_calendar_event() via Google Calendar API
-      send_gmail() drafts outreach email via Gmail API
+      draft outreach email via Gmail API (send requires explicit confirm + admin)
 ```
 
-Mode classification and retrieval run in parallel. Responses stream token by token via SSE. PLAN mode skips the response cache so every planning request produces a fresh artifact.
+Intent classification and retrieval run in parallel. Responses stream token by token via SSE. PLAN mode skips the response cache so every planning request produces a fresh artifact. Reranker failure degrades below the confidence gate, so a scoring outage returns "not enough info" instead of ungated generation.
 
 ---
 
@@ -76,12 +97,20 @@ The agent ingests two categories of org data:
 - Financial records and budget summaries
 - The 22MB Progsu Master Doc, exported tab by tab via the Docs API
 
-**Discord** (via server export)
-- Channels filtered to organizationally meaningful content (#hacklanta, #announcements, #exec-interest-meeting, #spring-kickoff, #claude-workshop, #involvement-fair, and more)
-- Off-topic channels (memes, bots, graphics, receipts) skipped automatically
+**Discord** (via bot REST API, weekly)
+- The bot fetches a rolling 14-day window per channel; no export tool, no manual steps
+- Channels filtered to organizationally meaningful content; off-topic channels (memes, bots, graphics, receipts) skipped automatically
+- Chunks keyed by their own date, so edits to already-ingested days self-correct on the next sync
 
 **Data quality pipeline:**
-Every chunk passes a Gemini YES/NO noise filter before storage. PII is stripped by regex then a Gemini pass before chunking. Spreadsheet rows are converted to structured text sentences before chunking.
+Every chunk passes a Gemini YES/NO noise filter before storage. PII is stripped by regex then a Gemini pass before chunking. Spreadsheet rows are converted to structured text sentences before chunking, and unrecognized spreadsheets are summarized to aggregate stats rather than stored raw. Financial content is access-classified at ingestion with a redacted rendition stored alongside the original.
+
+**Keeping it fresh:**
+```bash
+python -m src.ingestion.run_weekly_sync            # Drive delta + Discord window
+python -m src.ingestion.run_weekly_sync --dry-run  # report only, no API spend
+```
+Deployed as a Cloud Run Job on a weekly Cloud Scheduler trigger. Sync state lives in Atlas (`ingestion_state`, `sync_runs`), so failed sources retry automatically on the next run.
 
 ---
 
@@ -101,32 +130,39 @@ The three queries run live at the demo, with the sources each one draws from:
 
 ```
 src/
+  access.py                  tier capability matrix (anonymous/member/exec/admin)
+  financial_signals.py       shared cheap trigger for financial content
+  org_config.py              loads org-specific config from private org_config.json
   ingestion/
     drive_reader.py          reads Drive files, exports to text, handles multi-tab docs
-    discord_reader.py        parses Discord export, filters noise channels
-    run_ingestion.py         orchestrates Drive ingestion pipeline
-    run_discord_ingestion.py orchestrates Discord ingestion pipeline
+    drive_walker.py          recursive Drive walk with change detection + deletion sweep
+    discord_reader.py        groups messages into date-keyed daily chunks
+    discord_fetcher.py       bot-token REST fetch of rolling channel windows
+    access_classifier.py     ingestion-time financial judgment + redaction
+    run_ingestion.py         Drive ingestion pipeline (manual/full)
+    run_discord_ingestion.py Discord export ingestion (legacy manual path)
+    run_weekly_sync.py       scheduled weekly refresh: Drive delta + Discord delta
+    sync_state.py            ingestion_state + sync_runs collections
     chunker.py               splits text by doc_type rules
     pii_filter.py            strips PII before chunking
     noise_filter.py          Gemini YES/NO scoring per chunk
-    embedder.py              calls text-embedding-004, returns 768-dim vectors
+    embedder.py              gemini-embedding-001, 768-dim vectors
     storer.py                upserts chunks to MongoDB Atlas
-    summarizer.py            Gemini summarizer for aggregate/spreadsheet files
-    aggregate_router.py      routes file IDs to normal, aggregate, or tab-export path
   retrieval/
     vector_search.py         MongoDB Atlas $vectorSearch with metadata pre-filter
     reranker.py              batched Gemini reranking of top-k results
     retriever.py             combines search + rerank
   agent/
-    mode_classifier.py       classifies query as CHAT / RECALL / ANALYZE / PLAN
-    agent.py                 Gemini agent with parallel mode classification + retrieval, streaming
+    mode_classifier.py       structured intent classifier (mode + action flags)
+    agent.py                 unified streaming pipeline with tier-gated actions
     tools/
       retrieve.py            retrieval tool
       create_doc.py          creates Google Doc in Drive
       create_calendar_event.py  creates Calendar event via Google Calendar API
-      send_gmail.py          drafts and optionally sends outreach email via Gmail API
+      send_gmail.py          drafts outreach email; send is confirm + admin gated
   api/
-    server.py                FastAPI, POST /chat (SSE stream) + GET /health + POST /clear-cache
+    auth.py                  Discord OAuth flow, signed tokens, tier resolution
+    server.py                FastAPI: /chat + /chat/stream (SSE), /auth/*, /admin/stats, /health
   frontend/
     src/
       App.tsx
@@ -200,8 +236,11 @@ Suites skip cleanly when credentials are unavailable. All three require `GEMINI_
 git clone https://github.com/johnsang16/progsu-intelligence-agent
 cd progsu-intelligence-agent
 cp .env.example .env
-# Fill in your API keys in .env
+cp org_config.example.json org_config.json
+# Fill in your API keys in .env, and your org's values in org_config.json
 ```
+
+`org_config.json` holds everything org-specific (authoritative source file ids, sensitive phrase filters, event keyword mappings, demo seeds, Drive root folder id). It is gitignored; the codebase itself is org-agnostic.
 
 **Required environment variables:**
 
@@ -225,10 +264,11 @@ python -m src.ingestion.run_ingestion --priority 1
 python -m src.api.server
 ```
 
-**Discord ingestion (optional):**
+**Discord auth + weekly sync (optional):**
+Set the `DISCORD_*` variables documented in `.env.example` (OAuth app credentials, bot token, guild id, role-to-tier mappings, `SESSION_SECRET`). With all five core variables set, the login button appears and tiers activate; with any missing, the deployment behaves exactly like the original demo. The same bot token powers the weekly Discord ingestion:
 ```bash
-# Export your Discord server via DiscordChatExporter, place in discord_export/
-python -m src.ingestion.run_discord_ingestion
+python -m src.ingestion.run_weekly_sync --dry-run   # see what would sync first
+python -m src.ingestion.run_weekly_sync             # full refresh
 ```
 
 **Frontend:**
@@ -283,21 +323,21 @@ The bottleneck to institutional knowledge transfer in student organizations has 
 
 ## Demo
 
-The live deployment at https://frontend-coral-mu-47.vercel.app runs with `DEMO_MODE=true`. This enables rate limiting and injection blocking, and disables integrations that require write access to external services.
+The live deployment at https://frontend-coral-mu-47.vercel.app runs the public demo experience: rate limiting and injection blocking on, write integrations off, financial data restricted.
 
-| Feature | Demo | Full deployment |
-|---|---|---|
-| Google Doc creation (PLAN mode) | On | On |
-| Google Calendar event creation | Off | On |
-| Gmail outreach email | Off | On |
-| Rate limiting | Strict (10 req/IP/min) | Configurable |
-| Injection blocking | Strict | Configurable |
-| Download brief as Markdown | On | On |
-| Copy response to clipboard | On | On |
+With Discord auth configured, capabilities are per-tier instead of per-deployment:
 
-When Calendar or Gmail would have triggered in the demo (e.g. a PLAN query that says "add to calendar"), the response includes a note that those features are not available in this demo. All other PLAN functionality (retrieval, synthesis, Google Doc creation, side-panel viewer) works normally.
+| Capability | anonymous | member | exec | admin |
+|---|---|---|---|---|
+| RECALL / ANALYZE with citations | Yes | Yes | Yes | Yes |
+| Financial data | Restricted (redacted or refused) | Restricted | Full, flagged internal | Full |
+| PLAN (Google Doc creation) | No | No | Yes | Yes |
+| Calendar event creation | No | No | Yes | Yes |
+| Gmail outreach email | No | No | Draft only | Draft + explicit-confirm send |
+| Rate limiting | Strict | Standard | Relaxed | Relaxed |
+| /admin/stats (query log viewer) | No | No | No | Yes |
 
-Full deployments should still configure rate limiting and injection blocking to match their trust boundary. `DEMO_MODE` sets conservative defaults for public-facing use.
+Tiers come from Discord server roles at login and re-resolve on a one-hour cache, so role changes and removals take effect without re-login. Without auth configured, `DEMO_MODE=true` reproduces the anonymous experience deployment-wide.
 
 ---
 

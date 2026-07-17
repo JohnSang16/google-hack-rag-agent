@@ -226,3 +226,21 @@ Run in this order. Each step depends on the previous:
 **Why Gemini for reranking instead of a cross-encoder**: fewer dependencies, same API, fast enough for 10 docs
 **Why FastAPI over Flask**: async support, auto docs at /docs, cleaner for agent tool integration
 **Why Vite+React over Next.js**: simpler deployment for hackathon, faster setup, no SSR complexity needed
+
+---
+
+## Post-Hackathon Architecture (2026-07)
+
+The hackathon architecture above still describes the core retrieval design. Everything below was added afterward. The single source of truth for status and remaining work is the vault roadmap, not this file.
+
+**Identity and access (src/access.py, src/api/auth.py).** Discord OAuth login with roles mapped to four tiers (anonymous, member, exec, admin), each carrying a capability object (can_plan, can_calendar, can_gmail_send, financial_access, guarded, is_admin). Sessions are stateless HMAC-signed bearer tokens (stdlib crypto); tiers re-resolve per request through a 1-hour cached guild-member lookup via the bot token. With auth env vars unset, everything falls back to the original DEMO_MODE global.
+
+**Unified pipeline (src/agent/agent.py).** run() is a thin consumer of run_stream(); there is exactly one pipeline. Intent comes from one structured Gemini call (classify_intent) returning {mode, wants_calendar, wants_email, send_now} with a schema-enforced response; failure degrades to RECALL with all action flags false. The grounding check runs on PLAN answers in the production streaming path. PLAN only drafts email; sending requires an explicit confirmation turn plus admin capability.
+
+**Data governance (src/ingestion/access_classifier.py, src/financial_signals.py).** Chunks are access-classified at ingestion: a keyword/regex trigger routes suspicious chunks to a Gemini judge, verdicts stored as metadata.access_level with a redacted rendition (figures masked as [amount]) alongside the original text. Query-time enforcement in _filter_sensitive_chunks trusts the tag, serves redacted text to restricted tiers, and keeps the keyword scan only as a backstop for untagged legacy chunks.
+
+**Weekly refresh (src/ingestion/run_weekly_sync.py).** Drive: recursive walk with modifiedTime delta, deletion sweep, orphaned-chunk cleanup, unknown spreadsheets routed to the aggregate-summary path. Discord: bot-token REST fetch of a rolling 14-day window per channel, date-keyed chunk indexes (date_chunk_key) making overlap re-upserts idempotent, channel-ID keying so renames don't orphan chunks, text-hash skip for unchanged days. State in ingestion_state, run history in sync_runs, optional webhook summary post. Deployed as a Cloud Run Job on a weekly Cloud Scheduler trigger.
+
+**Config (src/org_config.py).** All org-specific constants (authoritative file ids, sensitive phrases, event keyword map, demo seeds, Drive root folder id) live in a gitignored org_config.json; .gcloudignore ships it to Cloud Run. The committed org_config.example.json documents the shape.
+
+**Observability.** query_logs collection (mode, latency, confidence, tier, user id, IP hash; 90-day TTL), /admin/stats endpoint (admin tier), GitHub Actions CI on every push.

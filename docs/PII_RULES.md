@@ -118,3 +118,18 @@ def check_chunk_for_pii(chunk_text: str) -> list[str]:
 ```
 
 Log a warning if any PII is found in stored chunks. Do not block ingestion  -  log and flag for manual review.
+
+---
+
+## Access-Level Classification (added 2026-07)
+
+PII stripping protects individuals; access classification protects org-sensitive data (finances) per user tier. Both run at ingestion.
+
+Every chunk passing the noise filter is access-classified (src/ingestion/access_classifier.py):
+
+1. A cheap keyword/regex trigger (src/financial_signals.py) checks for money signals. No signals: chunk tagged access_level "member" at zero cost.
+2. Triggered chunks go to a Gemini judge that distinguishes real financial data from figurative language ("cost us a lot of stress" is clean). Real financial data: tagged "exec" and a redacted rendition is stored (figures replaced with [amount], all other words verbatim).
+3. Judge failure restricts rather than leaks: the chunk is tagged "exec" with no redaction.
+4. doc_type "financial" sources skip the judge and are always "exec" with no redaction.
+
+Query-time enforcement (src/agent/agent.py, _filter_sensitive_chunks): restricted tiers receive the redacted rendition of exec-tagged chunks, or nothing if no redaction exists; member-tagged chunks pass even when they contain money words; untagged legacy chunks fall back to the keyword scan until the next sync re-tags them.
