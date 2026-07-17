@@ -38,23 +38,10 @@ FAILURE_SCORE = 3
 
 # Authoritative sources: one source of truth per topic area.
 # Chunks from these files get a +1.5 score boost after reranking.
-_AUTHORITATIVE_FILE_IDS = {
-    "1ekbPvjUYMW7oNi8rzWHdoBT1F-DLlKkqLbxcIuuD12Q",  # FAQs - Hacklanta
-    "1YFGL5-laW0CEaTHpR6gydZNV3SzWx0xO7n-IubrxTYc",  # Hacklanta Master Doc
-    "1ik1VanYAqzWWDnZC-Nu5mwfK78tmrtPP4TwEqZO3qrk",  # Hacklanta Run of Show
-    "1aS9sc-Vq7LEZTJblleow4sRGTpHPRaU_AM2ihBHbqD4",  # Hacklanta Winners and End Metrics
-    "1ttOfvbPcSPQXV19qH3Pw1H9H-BX9p01rHYo_gdcT2k0",  # post hacklanta growth stuff
-    "1umNbz4FFLimhWT9xsZwkqVSGvlTMJdig1Q8tfYih0Cs",  # Growth Master Doc
-    "1G3sGarC2J31ihYH_QqCwB4Q0Dcwr3TYfwuGjVz4DSlQ",  # FINANCE: 2025-2026 Bookkeeping
-    "17NYZQHMXGFnoW8MwzU95PQRLZlpjPfc86JEhwA6kUww",  # Progsu Org Structure
-    "1_8oyqbywfGRzg_sRmzESvWEsbdW4i-kISEpSPZ8GnGc",  # Roles and Responsibilities 2025
-    "1-BK0mGR1gHHuKR4Axofuy0WdWReEYf1JDt3sV3-Lxnk",  # Operations Meeting Notes
-    # Aggregate summaries — pre-synthesized data for the three demo queries
-    "1I9Vh8je61pqPp1zgXDZ82DSJ9O-fx70PEecE9xxmw18",  # Combined Attendance Fall25/Spring26
-    "1vkXd1xD-Q8tWhYFLhsTUQkV9i6xIsMNskXxFaGRJYwI",  # Hacklanta Judge Scoring + Outcomes
-    "1vses3E-EY6PRlW5NdSTDBtXUkUPvSXLlOXviVTyhooI",  # Hacklanta Email/SMS Campaign
-    "1GpU7gA6LJKLVzBFmaNEEar_m1R1NXamB_0Y7BAqRSg0",  # Involvement Fair Signups Fall25
-}
+# The ids live in org_config.json (private, gitignored), not in source.
+from src.org_config import cfg_list
+
+_AUTHORITATIVE_FILE_IDS = frozenset(cfg_list("authoritative_file_ids"))
 _AUTHORITY_BOOST = 1.5
 
 

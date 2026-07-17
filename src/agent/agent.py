@@ -9,6 +9,7 @@ from google import genai
 from dotenv import load_dotenv
 
 from src.access import Access, legacy_default
+from src.org_config import cfg_dict, cfg_list
 from src.agent.mode_classifier import classify_mode, _is_chat as _is_chat_query
 from src.agent.tools.retrieve import retrieve_context, format_context_for_prompt
 from src.agent.tools.create_doc import create_google_doc
@@ -27,15 +28,9 @@ logger = logging.getLogger(__name__)
 _DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 _DEMO_DISABLED_MSG = "\n\n---\n*Calendar and email features are not available in this demo.*"
 
-_SENSITIVE_PHRASES = (
-    "institutional resistance",
-    "university-controlled events",
-    "force a re-evaluation",
-    "desire for them to maintain control",
-    "bigger than any other hackathon at gsu",
-    "demonstrate our capability",
-    "expressed doubts about our ability to host",
-)
+# Org-specific phrase filters and event mappings live in org_config.json
+# (private, gitignored), not in public source.
+_SENSITIVE_PHRASES = tuple(cfg_list("sensitive_phrases"))
 
 
 # Financial data guard. A doc_type filter alone is not enough: dollar figures
@@ -373,14 +368,7 @@ _ANALYZE_PLAN_KEYWORDS = {
 _VECTOR_FILTER_KEYS = frozenset({"event_name", "semester", "doc_type", "team", "source_type", "date"})
 
 # Maps query keywords → event_name values stored in metadata
-_EVENT_KEYWORD_MAP = {
-    "hacklanta": "hacklanta",
-    "hack atlanta": "hacklanta",
-    "claude workshop": "claude_workshop",
-    "hackjam": "hackjam",
-    "gitpaid": "gitpaid",
-    "shipathon": "shipathon",
-}
+_EVENT_KEYWORD_MAP = cfg_dict("event_keyword_map")
 
 
 def _extract_event_filter(query: str) -> dict:
