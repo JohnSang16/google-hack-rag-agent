@@ -5,7 +5,7 @@ the pure role-mapping function.
 """
 import asyncio
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from src.access import (
     TIER_ADMIN,
@@ -16,7 +16,7 @@ from src.access import (
     legacy_default,
 )
 from src.api import auth as auth_module
-from src.api.auth import resolve_tier, sign_token, tier_from_roles, verify_token
+from src.api.auth import _role_cache, resolve_tier, sign_token, tier_from_roles, verify_token
 
 _SECRET = "test-secret"
 
@@ -118,8 +118,19 @@ def test_legacy_demo_mode_restricts_financial_but_allows_plan_docs():
     assert not a.financial_access and a.guarded
 
 
-def test_legacy_full_mode_is_unrestricted():
-    a = legacy_default(demo_mode=False)
+def test_legacy_default_without_opt_in_is_restricted():
+    # Forgetting to set the Discord auth env vars must not silently open up
+    # full unguarded access; the safe default is the same restricted tier
+    # authenticated deployments give unrecognized visitors.
+    with patch.dict("os.environ", {"LEGACY_FULL_ACCESS": "false"}):
+        a = legacy_default(demo_mode=False)
+    assert not a.can_plan and not a.can_calendar and not a.can_gmail_send
+    assert not a.financial_access and a.guarded
+
+
+def test_legacy_full_mode_requires_explicit_opt_in():
+    with patch.dict("os.environ", {"LEGACY_FULL_ACCESS": "true"}):
+        a = legacy_default(demo_mode=False)
     assert a.can_plan and a.can_calendar and a.can_gmail_send
     assert a.financial_access and not a.guarded
     assert not a.is_admin  # admin endpoints still need real auth
@@ -146,17 +157,17 @@ def test_resolve_tier_on_lookup_failure_uses_last_known_cache_not_token_fallback
     auth_module._role_cache.pop(user_id, None)
 
 
-def test_resolve_tier_falls_back_to_token_only_with_no_prior_cache():
-    """First-ever request for a user (no cache entry yet) with Discord
-    unreachable has nothing to fall back to except the token, which was just
-    minted at login moments earlier, so this is the acceptable degraded case."""
-    user_id = "user-2"
-    auth_module._role_cache.pop(user_id, None)
+# --- Discord outage with no prior cache must not preserve stale privilege ---
 
-    async def failing_lookup(uid):
-        return None
-
-    with patch.object(auth_module, "_lookup_tier", failing_lookup):
-        tier = asyncio.run(resolve_tier(user_id, fallback=TIER_MEMBER))
-
+def test_discord_outage_downgrades_stale_elevated_fallback():
+    _role_cache.clear()
+    with patch("src.api.auth._lookup_tier", AsyncMock(return_value=None)):
+        tier = asyncio.run(resolve_tier("999", fallback=TIER_ADMIN))
     assert tier == TIER_MEMBER
+
+
+def test_discord_outage_preserves_non_elevated_fallback():
+    _role_cache.clear()
+    with patch("src.api.auth._lookup_tier", AsyncMock(return_value=None)):
+        tier = asyncio.run(resolve_tier("999", fallback=TIER_ANONYMOUS))
+    assert tier == TIER_ANONYMOUS

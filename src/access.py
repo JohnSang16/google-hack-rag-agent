@@ -71,9 +71,19 @@ def legacy_default(demo_mode: Optional[bool] = None) -> Access:
     """Behavior when Discord auth is not configured: preserve the original
     deployment-wide DEMO_MODE semantics so nothing changes until auth env
     vars are set. Demo keeps PLAN doc creation on (the recorded demo relies
-    on it); the authenticated anonymous tier is stricter."""
+    on it); the authenticated anonymous tier is stricter.
+
+    The old "internal club use" default (full access, no guards, financial
+    data included) now requires an explicit LEGACY_FULL_ACCESS=true opt-in.
+    Without it, simply forgetting to set the Discord auth env vars during
+    rollout can no longer leave a public deployment wide open by default —
+    it falls back to the same restricted anonymous tier as authenticated
+    deployments give unrecognized visitors.
+    """
     demo = _DEMO_MODE if demo_mode is None else demo_mode
     if demo:
         return Access(TIER_ANONYMOUS, can_plan=True)
-    return Access(TIER_ANONYMOUS, can_plan=True, can_calendar=True,
-                  can_gmail_send=True, financial_access=True, guarded=False)
+    if os.environ.get("LEGACY_FULL_ACCESS", "false").lower() == "true":
+        return Access(TIER_ANONYMOUS, can_plan=True, can_calendar=True,
+                      can_gmail_send=True, financial_access=True, guarded=False)
+    return Access(TIER_ANONYMOUS)

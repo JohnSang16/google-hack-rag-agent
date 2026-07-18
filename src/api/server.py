@@ -14,15 +14,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.access import Access
+from src.access import Access, TIER_ANONYMOUS
 from src.org_config import cfg_dict
 from src.agent import agent as _agent
-from src.api.auth import get_access, router as auth_router
+from src.api.auth import auth_configured, get_access, router as auth_router
 
 load_dotenv()
 
 # DEMO_MODE=true enables public guardrails (off-topic filter, sensitive query block,
-# rate limiting). Leave unset or false for internal club use — full access, no restrictions.
+# rate limiting). Leave unset/false with no Discord auth configured and the
+# restricted anonymous tier applies (see access.legacy_default); the old
+# "internal club use, full access, no restrictions" behavior now requires
+# LEGACY_FULL_ACCESS=true as well.
 _DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 
 # --- Demo guardrails (only active when DEMO_MODE=true) ---
@@ -44,12 +47,21 @@ _BLOCKED_PATTERNS = [
 ]
 
 
+_TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "1"))
+
+
 def _get_client_ip(req: Request) -> str:
     forwarded = req.headers.get("x-forwarded-for")
     if forwarded:
-        # Use the last hop: clients can prepend arbitrary values to this header,
-        # but the last entry is appended by Cloud Run's own proxy and is trustworthy.
-        return forwarded.split(",")[-1].strip()
+        # Clients can prepend arbitrary values to this header. Only the last
+        # TRUSTED_PROXY_HOPS entries are appended by infrastructure we trust —
+        # default 1 hop assumes Cloud Run's own proxy is the only thing in
+        # front of this service. If this deployment sits behind an additional
+        # trusted proxy/CDN, set TRUSTED_PROXY_HOPS to match, or this will
+        # read a client-controlled value as the "real" IP.
+        hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+        if hops:
+            return hops[max(0, len(hops) - _TRUSTED_PROXY_HOPS)]
     return req.client.host if req.client else "unknown"
 
 
@@ -143,9 +155,19 @@ async def _log_query(
         logger.warning("Query log insert failed: %s", e)
 
 
+_background_tasks: set = set()
+
+
 def _log_query_bg(*args, **kwargs) -> None:
-    """Fire-and-forget wrapper so logging adds no request latency."""
-    asyncio.get_running_loop().create_task(_log_query(*args, **kwargs))
+    """Fire-and-forget wrapper so logging adds no request latency.
+
+    asyncio only holds a weak reference to a task once nothing else refers to
+    it, so an unheld task can be garbage-collected mid-flight. Keep a strong
+    reference until it finishes.
+    """
+    task = asyncio.get_running_loop().create_task(_log_query(*args, **kwargs))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def _best_confidence(citations) -> Optional[float]:
@@ -175,7 +197,7 @@ _DEMO_SEEDS: dict = cfg_dict("demo_seeds")
 
 def _apply_demo_seeds() -> None:
     for query, value in _DEMO_SEEDS.items():
-        key = _cache_key(query, None)
+        key = _cache_key(query, None, TIER_ANONYMOUS)
         entry = {**value}
         live = _LIVE_ARTIFACTS.get(query, {})
         # Merge in any live artifact URLs preserved from a previous real run
@@ -191,10 +213,12 @@ def _apply_demo_seeds() -> None:
 _NON_CACHE_FILTER_KEYS = frozenset({"plan_doc_url"})
 
 
-def _cache_key(query: str, filters: Optional[dict]) -> str:
-    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses
+def _cache_key(query: str, filters: Optional[dict], tier: str = TIER_ANONYMOUS) -> str:
+    # Strip non-retrieval fields (e.g. plan_doc_url) so they don't cause cache misses.
+    # Tier is part of the key so an exec-tier answer (may include financial figures)
+    # is never replayed to a lower-tier request for the same query text.
     clean = {k: v for k, v in (filters or {}).items() if k not in _NON_CACHE_FILTER_KEYS}
-    payload = query.strip().lower() + json.dumps(clean, sort_keys=True)
+    payload = tier + "|" + query.strip().lower() + json.dumps(clean, sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()
 
 
@@ -297,6 +321,19 @@ async def admin_stats(access: Access = Depends(get_access)):
 
 @app.on_event("startup")
 async def startup():
+    if not auth_configured() and not _DEMO_MODE:
+        if os.environ.get("LEGACY_FULL_ACCESS", "false").lower() == "true":
+            logger.warning(
+                "Startup: Discord auth is NOT configured and LEGACY_FULL_ACCESS=true — "
+                "every request gets unguarded, unrated, financial-data-included access."
+            )
+        else:
+            logger.warning(
+                "Startup: Discord auth is NOT configured, DEMO_MODE is off, and "
+                "LEGACY_FULL_ACCESS is not set — falling back to the restricted "
+                "anonymous tier for all requests. Set the Discord auth env vars, "
+                "DEMO_MODE=true, or LEGACY_FULL_ACCESS=true to change this."
+            )
     _apply_demo_seeds()
     logger.info("Demo seeds loaded into cache (%d of %d — PLAN skipped until live run)", len(_response_cache), len(_DEMO_SEEDS))
     # TTL index: query log rows self-delete after 90 days so the M0 tier
@@ -310,14 +347,14 @@ async def startup():
 
 
 @app.post("/cache/clear")
-async def clear_cache(http_request: Request):
-    # Unauthenticated cache clears let anyone force live Gemini spend.
-    # If ADMIN_TOKEN is set, require it; in DEMO_MODE with no token configured, deny.
+async def clear_cache(http_request: Request, access: Access = Depends(get_access)):
+    # Unauthenticated cache clears let anyone force live Gemini spend. Deny by
+    # default — there's no configuration where an anonymous caller should be
+    # able to hit this. Accept either the shared ADMIN_TOKEN header (legacy /
+    # no-auth deployments) or an authenticated admin-tier caller.
     admin_token = os.environ.get("ADMIN_TOKEN")
-    if admin_token:
-        if http_request.headers.get("x-admin-token") != admin_token:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    elif _DEMO_MODE:
+    token_ok = bool(admin_token) and http_request.headers.get("x-admin-token") == admin_token
+    if not (token_ok or access.is_admin):
         raise HTTPException(status_code=403, detail="Forbidden")
     _response_cache.clear()
     _apply_demo_seeds()
@@ -350,7 +387,7 @@ async def chat_stream(request: ChatRequest, http_request: Request, access: Acces
 
     logger.info("POST /chat/stream: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
 
     # Per-mode cache replay config — spinner_delay matches demo script slot timing,
@@ -464,7 +501,7 @@ async def chat(request: ChatRequest, http_request: Request, access: Access = Dep
 
     logger.info("POST /chat: %s", request.query[:80])
 
-    cache_key = _cache_key(request.query, request.filters)
+    cache_key = _cache_key(request.query, request.filters, access.tier)
     cached = _cache_get(cache_key)
     if cached and cached.get("mode") != "PLAN":
         logger.info("Cache hit for query: %s", request.query[:60])

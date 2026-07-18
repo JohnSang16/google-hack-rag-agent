@@ -136,7 +136,16 @@ def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
 def sweep_deleted_files(collection, state_coll, walked_file_ids: set) -> int:
     """Purge chunks for Drive files that vanished from the walk (deleted,
     trashed, or moved out of the root). Without this, a deleted doc stays
-    searchable forever."""
+    searchable forever.
+
+    An empty walk result almost always means the Drive walk failed or the
+    root folder was unreachable, not that every file was deleted — `$nin`
+    against an empty set would otherwise match (and wipe) the entire corpus.
+    Refuse the sweep in that case instead.
+    """
+    if not walked_file_ids:
+        logger.warning("Drive walk returned 0 files — skipping deletion sweep to avoid wiping the corpus")
+        return 0
     deleted_chunks = 0
     gone = state_coll.find({
         "source_type": "google_drive",
