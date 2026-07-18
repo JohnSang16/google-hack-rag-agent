@@ -148,6 +148,14 @@ async def resolve_tier(user_id: str, fallback: str = TIER_ANONYMOUS) -> str:
         return cached[0]
     tier = await _lookup_tier(user_id)
     if tier is None:
+        # Discord unreachable at the cache-refresh boundary. Fall back to the
+        # last known (now-stale) cache entry rather than the bearer token's
+        # baked-in tier: the token can be valid for up to 7 days, so trusting
+        # it here would let a demoted/kicked admin keep elevated access far
+        # longer than the intended ~1-hour revocation window. A stale cache
+        # entry is bounded by how recently the last successful check ran.
+        if cached:
+            return cached[0]
         return fallback
     _role_cache[user_id] = (tier, None, now + _ROLE_CACHE_TTL)
     return tier

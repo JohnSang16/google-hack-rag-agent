@@ -3,6 +3,7 @@ Pins the Discord auth token layer and the tier capability matrix.
 No network calls; Discord API interaction is exercised only through
 the pure role-mapping function.
 """
+import asyncio
 import time
 from unittest.mock import patch
 
@@ -14,7 +15,8 @@ from src.access import (
     access_for_tier,
     legacy_default,
 )
-from src.api.auth import sign_token, tier_from_roles, verify_token
+from src.api import auth as auth_module
+from src.api.auth import resolve_tier, sign_token, tier_from_roles, verify_token
 
 _SECRET = "test-secret"
 
@@ -121,3 +123,40 @@ def test_legacy_full_mode_is_unrestricted():
     assert a.can_plan and a.can_calendar and a.can_gmail_send
     assert a.financial_access and not a.guarded
     assert not a.is_admin  # admin endpoints still need real auth
+
+
+# --- resolve_tier: revocation must not fail open on a transient Discord outage ---
+
+def test_resolve_tier_on_lookup_failure_uses_last_known_cache_not_token_fallback():
+    """A demoted/kicked user's bearer token can still say tier=admin (tokens
+    live up to 7 days). If Discord happens to be unreachable exactly when the
+    1-hour role cache expires, the resolver must not trust that stale token
+    value: it should fall back to the last successfully cached tier instead,
+    bounding how long a revoked user keeps elevated access."""
+    user_id = "user-1"
+    auth_module._role_cache[user_id] = (TIER_MEMBER, None, time.time() - 1)  # expired
+
+    async def failing_lookup(uid):
+        return None
+
+    with patch.object(auth_module, "_lookup_tier", failing_lookup):
+        tier = asyncio.run(resolve_tier(user_id, fallback=TIER_ADMIN))
+
+    assert tier == TIER_MEMBER  # last known cache, not the token's ADMIN fallback
+    auth_module._role_cache.pop(user_id, None)
+
+
+def test_resolve_tier_falls_back_to_token_only_with_no_prior_cache():
+    """First-ever request for a user (no cache entry yet) with Discord
+    unreachable has nothing to fall back to except the token, which was just
+    minted at login moments earlier, so this is the acceptable degraded case."""
+    user_id = "user-2"
+    auth_module._role_cache.pop(user_id, None)
+
+    async def failing_lookup(uid):
+        return None
+
+    with patch.object(auth_module, "_lookup_tier", failing_lookup):
+        tier = asyncio.run(resolve_tier(user_id, fallback=TIER_MEMBER))
+
+    assert tier == TIER_MEMBER

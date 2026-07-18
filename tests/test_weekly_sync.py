@@ -19,7 +19,8 @@ from src.ingestion.drive_walker import (
     spec_for_file,
     sweep_deleted_files,
 )
-from src.ingestion.run_weekly_sync import _window_floor_key
+from src.ingestion import run_weekly_sync
+from src.ingestion.run_weekly_sync import _window_floor_key, sync_discord
 
 
 # --- Date-based chunk keys ---
@@ -122,6 +123,53 @@ def test_window_floor_key_is_a_recent_date_key():
     floor = _window_floor_key(14)
     assert floor > LEGACY_CHUNK_KEY_CEILING
     assert floor % 1000 == 0  # subchunk 0 of the window start date
+
+
+def test_edited_day_that_becomes_noise_is_swept_not_orphaned(monkeypatch):
+    """A day previously stored as useful content, then edited down to
+    something the noise filter now rejects, must not be left stale: its key
+    must be excluded from produced_keys so the sweep step deletes the old
+    stored version instead of orphaning it forever."""
+    key = date_chunk_key("2026-07-10", 0)
+    chunk = {
+        "text": "edited content that now reads as noise",
+        "date": "2026-07-10",
+        "chunk_index": key,
+        "channel": "general",
+        "discord_url": None,
+        "messages": [],
+    }
+
+    monkeypatch.setenv("DISCORD_GUILD_ID", "g1")
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", "t1")
+    monkeypatch.setattr(run_weekly_sync, "list_text_channels", lambda gid: [{"id": "c1", "name": "general"}])
+    monkeypatch.setattr(run_weekly_sync, "_should_skip_channel", lambda name: False)
+    monkeypatch.setattr(run_weekly_sync, "fetch_messages_window", lambda cid, days: [{"id": "1"}])
+    monkeypatch.setattr(run_weekly_sync, "chunks_from_messages", lambda *a, **k: [chunk])
+    monkeypatch.setattr(run_weekly_sync, "strip_pii_regex", lambda t: t)
+    monkeypatch.setattr(run_weekly_sync, "is_useful_chunk", lambda t: False)  # now judged noise
+
+    collection = MagicMock()
+    collection.delete_many.return_value.deleted_count = 1
+    collection.update_many.return_value = None
+    monkeypatch.setattr(run_weekly_sync, "get_collection", lambda: collection)
+
+    state_coll = MagicMock()
+    # Old hash differs from the new content's hash, so this is NOT a hash-skip;
+    # the old stored chunk was retained from a prior run where it was useful.
+    stale_state = {"chunk_hashes": {str(key): "stale-old-hash-not-matching"}, "legacy_purged": True}
+    monkeypatch.setattr(run_weekly_sync, "get_state_collection", lambda: state_coll)
+    monkeypatch.setattr(run_weekly_sync, "get_source_state", lambda *a, **k: stale_state)
+    monkeypatch.setattr(run_weekly_sync, "mark_synced", lambda *a, **k: None)
+
+    sync_discord()
+
+    # The sweep must run with produced_keys excluding this chunk's key, so the
+    # $nin filter does not protect the stale stored doc from deletion.
+    sweep_call = collection.delete_many.call_args
+    assert sweep_call is not None
+    nin_list = sweep_call[0][0]["metadata.chunk_index"]["$nin"]
+    assert key not in nin_list
 
 
 def test_delete_orphaned_chunks_only_on_shrink():
