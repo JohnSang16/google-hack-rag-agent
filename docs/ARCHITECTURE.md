@@ -244,3 +244,28 @@ The hackathon architecture above still describes the core retrieval design. Ever
 **Config (src/org_config.py).** All org-specific constants (authoritative file ids, sensitive phrases, event keyword map, demo seeds, Drive root folder id) live in a gitignored org_config.json; .gcloudignore ships it to Cloud Run. The committed org_config.example.json documents the shape.
 
 **Observability.** query_logs collection (mode, latency, confidence, tier, user id, IP hash; 90-day TTL), /admin/stats endpoint (admin tier), GitHub Actions CI on every push.
+
+---
+
+## Deployment
+
+**Backend:** Cloud Run via `gcloud run deploy progsu-agent --source . --region us-central1`. The Dockerfile builds the FastAPI app; secrets (Drive OAuth token) mount via Secret Manager at `/secrets/`. `.gcloudignore` deliberately ships the gitignored `org_config.json` with the deploy.
+
+**Frontend:** Vercel. Set `VITE_API_URL` to the Cloud Run service URL.
+
+**MongoDB Atlas:** M0 free tier. Requires the Atlas Vector Search index (see the architecture diagram above for field definitions). IP whitelist must include Cloud Run's egress range, or `0.0.0.0/0` as an interim step.
+
+**Env vars to set on Cloud Run before publishing** (full list with descriptions in `.env.example`):
+
+```
+DEMO_MODE=true
+DAILY_REQUEST_CAP=300
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+ADMIN_TOKEN=
+TRUSTED_PROXY_HOPS=1
+DISCORD_CLIENT_ID= / DISCORD_CLIENT_SECRET= / DISCORD_BOT_TOKEN= / DISCORD_GUILD_ID= / SESSION_SECRET=
+DISCORD_EXEC_ROLE_IDS= / DISCORD_ADMIN_ROLE_IDS= / DISCORD_ADMIN_USER_IDS=
+FRONTEND_URL=
+```
+
+Also set a hard quota on the Gemini API in GCP Console: APIs and Services, Gemini API, Quotas and System Limits, cap request-per-day and request-per-minute, and set a billing budget alert under Billing, Budgets and alerts.
