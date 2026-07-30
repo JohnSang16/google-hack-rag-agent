@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
+COPY org_config.json* org_config.example.json ./
 
 RUN ls -la /app/src/ && python -c "import sys; sys.path.insert(0,'/app'); from src.api.server import app; print('import OK')"
 
