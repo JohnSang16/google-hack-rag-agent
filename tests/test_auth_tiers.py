@@ -15,6 +15,7 @@ from src.access import (
     access_for_tier,
     legacy_default,
 )
+from src.api import auth as auth_module
 from src.api.auth import _role_cache, resolve_tier, sign_token, tier_from_roles, verify_token
 
 _SECRET = "test-secret"
@@ -135,7 +136,28 @@ def test_legacy_full_mode_requires_explicit_opt_in():
     assert not a.is_admin  # admin endpoints still need real auth
 
 
-# --- Discord outage during tier refresh must not preserve stale privilege ---
+# --- resolve_tier: revocation must not fail open on a transient Discord outage ---
+
+def test_resolve_tier_on_lookup_failure_uses_last_known_cache_not_token_fallback():
+    """A demoted/kicked user's bearer token can still say tier=admin (tokens
+    live up to 7 days). If Discord happens to be unreachable exactly when the
+    1-hour role cache expires, the resolver must not trust that stale token
+    value: it should fall back to the last successfully cached tier instead,
+    bounding how long a revoked user keeps elevated access."""
+    user_id = "user-1"
+    auth_module._role_cache[user_id] = (TIER_MEMBER, None, time.time() - 1)  # expired
+
+    async def failing_lookup(uid):
+        return None
+
+    with patch.object(auth_module, "_lookup_tier", failing_lookup):
+        tier = asyncio.run(resolve_tier(user_id, fallback=TIER_ADMIN))
+
+    assert tier == TIER_MEMBER  # last known cache, not the token's ADMIN fallback
+    auth_module._role_cache.pop(user_id, None)
+
+
+# --- Discord outage with no prior cache must not preserve stale privilege ---
 
 def test_discord_outage_downgrades_stale_elevated_fallback():
     _role_cache.clear()

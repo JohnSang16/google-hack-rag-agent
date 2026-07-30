@@ -74,10 +74,6 @@ export default function ChatInterface() {
   const [authOn, setAuthOn] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_BASE}/cache/clear`, { method: 'POST' }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     captureTokenFromHash();
     fetch(`${API_BASE}/auth/me`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))

@@ -380,7 +380,7 @@ async def chat_stream(request: ChatRequest, http_request: Request, access: Acces
 
         guard_err = _check_query(request.query.strip())
         if guard_err:
-            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
+            _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True, user_id=access.user_id, tier=access.tier)
             raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
@@ -494,7 +494,7 @@ async def chat(request: ChatRequest, http_request: Request, access: Access = Dep
 
         guard_err = _check_query(request.query.strip())
         if guard_err:
-            _log_query_bg(request.query, "BLOCKED", rate_key, 0, injection_flagged=True)
+            _log_query_bg(request.query, "BLOCKED", ip, 0, injection_flagged=True, user_id=access.user_id, tier=access.tier)
             raise HTTPException(status_code=400, detail=guard_err)
 
     _count_daily_request()
@@ -521,6 +521,11 @@ async def chat(request: ChatRequest, http_request: Request, access: Access = Dep
             summary=result.get("summary"),
             citations=[Citation(**c) for c in result["citations"]],
             created_doc_url=result.get("created_doc_url"),
+            calendar_event_url=result.get("calendar_event_url"),
+            calendar_event_id=result.get("calendar_event_id"),
+            calendar_event_start_date=result.get("calendar_event_start_date"),
+            gmail_draft_id=result.get("gmail_draft_id"),
+            gmail_draft_url=result.get("gmail_draft_url"),
         )
         if response.mode != "PLAN":
             _cache_set(cache_key, response.model_dump())

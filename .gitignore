@@ -171,6 +171,6 @@ _bmad-output/
 # Credentials
 .env
 
-# Org-specific private config (Section 5) — example stays committed
+# Org-specific private config (Section 5). Example stays committed
 org_config.json
 !org_config.example.json

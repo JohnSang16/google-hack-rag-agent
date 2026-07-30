@@ -148,11 +148,15 @@ async def resolve_tier(user_id: str, fallback: str = TIER_ANONYMOUS) -> str:
         return cached[0]
     tier = await _lookup_tier(user_id)
     if tier is None:
-        # Discord lookup failed (outage). `fallback` is the tier baked into a
-        # bearer token that can live for up to _TOKEN_TTL (7 days) — trusting
-        # it blindly would let a demoted admin/exec ride out an outage with
-        # elevated capabilities for that whole window. Cap the fallback to
-        # member; a stale "still just a member" assumption isn't privileged.
+        # Discord lookup failed (outage, rate limit, or the cache-refresh
+        # boundary landed badly). Prefer the last known cache entry, bounded
+        # staleness of roughly one cache TTL, over the bearer token's baked-in
+        # tier, which can be up to _TOKEN_TTL (7 days) stale. If there is no
+        # prior cache at all (first request for this user, or the in-memory
+        # cache was wiped by a restart), never trust an elevated exec/admin
+        # fallback from the token blindly: cap it at member.
+        if cached:
+            return cached[0]
         return TIER_MEMBER if fallback in (TIER_EXEC, TIER_ADMIN) else fallback
     _role_cache[user_id] = (tier, None, now + _ROLE_CACHE_TTL)
     return tier

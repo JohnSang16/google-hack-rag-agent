@@ -180,14 +180,19 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
                 {"$set": {"metadata.file_id": display_file_id, "metadata.file_title": f"Discord #{name}"}},
             )
 
+            # Only keys that are actually retained (unchanged or freshly stored)
+            # go in produced_keys. A day that gets edited into something the
+            # noise filter now rejects must NOT be marked produced: leaving it
+            # out lets the sweep below purge the now-stale stored version,
+            # instead of orphaning outdated content forever.
             produced_keys = []
             for chunk in chunks:
                 text = strip_pii_regex(chunk["text"])
                 key = str(chunk["chunk_index"])
-                produced_keys.append(chunk["chunk_index"])
                 digest = hashlib.sha256(text.encode()).hexdigest()
                 if hashes.get(key) == digest:
                     stats["hash_skipped"] += 1
+                    produced_keys.append(chunk["chunk_index"])
                     continue
                 if not is_useful_chunk(text):
                     stats["noise_filtered"] += 1
@@ -222,6 +227,7 @@ def sync_discord(window_days: int = DEFAULT_WINDOW_DAYS, dry_run: bool = False) 
                     upsert=True,
                 )
                 hashes[key] = digest
+                produced_keys.append(chunk["chunk_index"])
                 stats["stored"] += 1
 
             # Sweep: any stored chunk inside the window this run did NOT

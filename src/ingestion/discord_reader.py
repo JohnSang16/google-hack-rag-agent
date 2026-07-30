@@ -181,15 +181,15 @@ def read_discord_export(json_path: Path) -> Iterator[dict]:
     Parse a DiscordChatExporter JSON file and yield daily chunk dicts.
 
     Each yielded dict:
-      text             - chunk text for embedding (no author names)
-      channel          - channel name
-      date             - YYYY-MM-DD
-      chunk_index      - date_chunk_key(date, subchunk), stable across runs
-      guild_id         - Discord server ID
-      channel_id       - Discord channel ID
-      first_message_id - ID of the first message in this chunk (for deep link)
-      discord_url      - discord.com deep link to the first message
-      messages         - list of {time, author, content} for UI display
+      text:             chunk text for embedding (no author names)
+      channel:          channel name
+      date:             YYYY-MM-DD
+      chunk_index:      date_chunk_key(date, subchunk), stable across runs
+      guild_id:         Discord server ID
+      channel_id:       Discord channel ID
+      first_message_id: ID of the first message in this chunk (for deep link)
+      discord_url:      discord.com deep link to the first message
+      messages:         list of {time, author, content} for UI display
     """
     with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
