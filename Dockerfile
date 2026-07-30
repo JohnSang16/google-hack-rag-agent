@@ -5,11 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/__init__.py ./src/__init__.py
-COPY src/api/ ./src/api/
-COPY src/agent/ ./src/agent/
-COPY src/ingestion/ ./src/ingestion/
-COPY src/retrieval/ ./src/retrieval/
+COPY src/ ./src/
 
 RUN ls -la /app/src/ && python -c "import sys; sys.path.insert(0,'/app'); from src.api.server import app; print('import OK')"
 
