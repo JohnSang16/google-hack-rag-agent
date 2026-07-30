@@ -210,7 +210,11 @@ def ingest_file(
     if file_id in AGGREGATE_FILE_IDS or agg_type:
         resolved_agg_type = agg_type or ("spreadsheet" if GOOGLE_SHEET_MIME in mime_type else "interview")
         summary = _aggregate_with_gemini(text, resolved_agg_type, gemini_client)
-        access = classify_chunk_access(summary, gemini_client, known_financial=(doc_type == "financial"))
+        forced_level = spec.get("forced_access_level")
+        access = (
+            {"level": forced_level, "redacted": None} if forced_level
+            else classify_chunk_access(summary, gemini_client, known_financial=(doc_type == "financial"))
+        )
         embedding = get_embedding(summary)
         metadata = {
             "source_type": "google_drive",
@@ -260,8 +264,12 @@ def ingest_file(
 
     # 5. Access-classify + embed + store
     stored = 0
+    forced_level = spec.get("forced_access_level")
     for i, chunk in enumerate(kept_chunks):
-        access = classify_chunk_access(chunk, gemini_client, known_financial=(doc_type == "financial"))
+        access = (
+            {"level": forced_level, "redacted": None} if forced_level
+            else classify_chunk_access(chunk, gemini_client, known_financial=(doc_type == "financial"))
+        )
         embedding = get_embedding(chunk)
         metadata = {
             "source_type": "google_drive",

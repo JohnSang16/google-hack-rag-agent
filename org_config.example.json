@@ -17,5 +17,6 @@
       "citations": []
     }
   },
-  "drive_root_folder_id": "your-drive-root-folder-id"
+  "drive_root_folder_id": "your-drive-root-folder-id",
+  "vp_only_folder_id": "your-vp-only-drive-folder-id (optional, everything under it is forced exec-tier)"
 }

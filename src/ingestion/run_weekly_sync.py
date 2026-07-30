@@ -84,6 +84,7 @@ def _post_webhook_summary(summary: dict) -> None:
 
 def sync_drive(dry_run: bool = False) -> dict:
     root = os.environ.get("DRIVE_ROOT_FOLDER_ID") or load_org_config().get("drive_root_folder_id", "")
+    vp_root = os.environ.get("VP_ONLY_FOLDER_ID") or load_org_config().get("vp_only_folder_id", "")
     if not root:
         logger.warning("No drive_root_folder_id configured, skipping Drive sync")
         return {"skipped": 0, "synced": 0, "errors": 0, "unconfigured": True}
@@ -95,6 +96,10 @@ def sync_drive(dry_run: bool = False) -> dict:
 
     stats = {"skipped": 0, "synced": 0, "errors": 0, "swept": 0, "would_sync": []}
     walked = walk_drive_folder(service, root)
+    if vp_root:
+        # exec-only tier: every chunk from this tree is gated regardless of
+        # content, same drop-for-restricted-tiers path as financial chunks
+        walked += walk_drive_folder(service, vp_root, forced_access_level="exec")
     if not dry_run:
         stats["swept"] = sweep_deleted_files(collection, state_coll, {s["file_id"] for s in walked})
     for spec in walked:

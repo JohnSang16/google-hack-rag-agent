@@ -90,10 +90,16 @@ def spec_for_file(file_meta: dict, path: str, known: dict) -> dict:
     return spec
 
 
-def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
+def walk_drive_folder(service, root_folder_id: str, forced_access_level: Optional[str] = None) -> list[dict]:
     """Return ingestable file specs for the whole tree under root_folder_id:
     [{file_id, file_title, mime_type, modified_time, doc_type, event_name,
-      semester, agg_type?}]."""
+      semester, agg_type?, forced_access_level}].
+
+    forced_access_level, when set, overrides the content-based access
+    classifier for every file in this tree (see run_ingestion.ingest_file).
+    Used for folders that are access-restricted by location alone (e.g. a
+    VP-only Drive folder), independent of whether any given doc happens to
+    contain financial-looking content."""
     known = _known_specs()
     results: list[dict] = []
     stack = [(root_folder_id, "")]
@@ -124,6 +130,7 @@ def walk_drive_folder(service, root_folder_id: str) -> list[dict]:
                     "mime_type": f["mimeType"],
                     "modified_time": f.get("modifiedTime", ""),
                     "drive_path": path,
+                    "forced_access_level": forced_access_level,
                 })
             page_token = resp.get("nextPageToken")
             if not page_token:
