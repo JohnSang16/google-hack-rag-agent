@@ -59,7 +59,10 @@ Text:
         response = client.models.generate_content(
             model="gemini-2.5-flash", contents=prompt
         )
-        return response.text
+        # Near-empty input (e.g. a 1-char doc) can come back with
+        # finish_reason=STOP but zero output tokens, so response.text is None
+        # despite no error being raised.
+        return response.text if response.text is not None else text
     except Exception as e:
         logger.warning("Gemini PII strip failed, keeping regex result: %s", e)
         return text
